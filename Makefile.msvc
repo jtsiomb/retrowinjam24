@@ -1,0 +1,22 @@
+obj = src\win32\main_w32.obj src\win32\gfx.obj \
+	  src\options.obj src\dynarr.obj src\treestor.obj src\ts_text.obj \
+	  src\logger.obj
+bin = game.exe
+
+#opt = /O2 /G5
+dbg = /Zi
+warn = /W3
+
+CC = cl
+CFLAGS = /nologo $(opt) $(dbg) $(warn) /I src /I src\win32
+LDFLAGS = /nologo /MD /link ddraw.lib user32.lib gdi32.lib winmm.lib
+
+$(bin): $(obj)
+	$(CC) /Fe$@ $(obj) $(LDFLAGS)
+
+.c.obj:
+	$(CC) /c /Fo$@ $< $(CFLAGS)
+
+clean:
+	del $(obj)
+	del $(bin)

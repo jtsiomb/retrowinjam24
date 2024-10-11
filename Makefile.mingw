@@ -1,0 +1,28 @@
+src = $(wildcard src/*.c) $(wildcard src/win32/*.c)
+obj = $(src:.c=.o)
+dep = $(src:.c=.d)
+bin = game.exe
+
+#opt = -O3
+dbg = -g
+warn = -pedantic -Wall
+
+TC=i686-w64-mingw32-
+CC=$(TC)gcc
+
+CFLAGS = $(warn) $(opt) $(dbg) -Isrc -Isrc/win32 -MMD
+LDFLAGS = -lddraw -luser32 -lgdi32 -lwinmm
+
+$(bin): $(obj)
+	$(CC) -o $@ $(obj) $(LDFLAGS)
+
+-include $(dep)
+
+.PHONY: clean
+clean:
+	rm -f $(obj)
+	rm -f $(bin)
+
+.PHONY: cleandep
+cleandep:
+	rm -f $(dep)

@@ -1,0 +1,14 @@
+*.o
+*.d
+*.obj
+*.swp
+*.lib
+*.exe
+Makefile
+*.zip
+*.log
+*.cfg
+data/
+datasrc/
+Debug/
+Release/
