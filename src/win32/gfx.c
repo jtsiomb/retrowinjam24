@@ -245,7 +245,7 @@ int gfx_setup(int xsz, int ysz, int bpp, unsigned int flags)
 			goto err;
 		}
 	}
-	
+
 	pf.dwSize = sizeof pf;
 	IDirectDrawSurface2_GetPixelFormat(fbsurf, &pf);
 	if(pf.dwFlags & DDPF_PALETTEINDEXED8) {

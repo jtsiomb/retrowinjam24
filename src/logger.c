@@ -2,15 +2,16 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdarg.h>
-#include <windows.h>
-#include <fcntl.h>
-#include <io.h>
 #include "logger.h"
 
 
 int log_start(const char *fname)
 {
+#if defined(_WIN32) || defined(DOS)
 	if(!fname) fname = "CON";
+#else
+	if(!fname) fname = "/dev/tty";
+#endif
 
 	fflush(stdout);
 	fflush(stderr);
