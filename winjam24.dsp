@@ -105,6 +105,10 @@ SOURCE=.\src\dynarr.h
 # End Source File
 # Begin Source File
 
+SOURCE=.\src\game.c
+# End Source File
+# Begin Source File
+
 SOURCE=.\src\win32\gfx.c
 # End Source File
 # Begin Source File

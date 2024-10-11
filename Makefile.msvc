@@ -1,6 +1,6 @@
 obj = src\win32\main_w32.obj src\win32\gfx.obj \
 	  src\options.obj src\dynarr.obj src\treestor.obj src\ts_text.obj \
-	  src\logger.obj
+	  src\game.obj src\logger.obj
 bin = game.exe
 
 #opt = /O2 /G5
