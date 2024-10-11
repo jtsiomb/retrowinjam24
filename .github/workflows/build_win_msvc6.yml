@@ -1,0 +1,51 @@
+name: Windows MSVC 6.0 build
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: cache toolchain
+      id: cache-tc
+      uses: actions/cache@v3
+      with:
+        path: |
+          msvc6lt
+          vc6varsgh.bat
+        key: msvc6lt-cache1
+
+    - name: install toolchain
+      if: steps.cache-tc.outputs.cache-hit != 'true'
+      run: |
+        C:\msys64\usr\bin\wget.exe -q http://mutantstargoat.com/~nuclear/msvc6.zip
+        7z x msvc6.zip
+        C:\msys64\usr\bin\wget.exe -q http://mutantstargoat.com/~nuclear/vc6fullvarsgh.bat
+
+    - name: build winjam24 (project)
+      shell: cmd
+      run: |
+        call vc6fullvarsgh.bat
+        msdev winjam24.dsp /MAKE "winjam24 - Win32 Release"
+        mkdir winjam24-win32-msvc
+        copy Release\winjam24.exe winjam24-win32-msvc
+
+    - name: build winjam24 (nmake)
+      shell: cmd
+      run: |
+        call vc6fullvarsgh.bat
+        nmake -f Makefile.msvc
+        copy game.exe winjam24-win32-msvc
+
+    - uses: actions/upload-artifact@v3
+      with:
+        name: winjam24-win32-msvc
+        path: winjam24-win32-msvc
+
+# vi:ts=2 sts=2 sw=2 expandtab:
