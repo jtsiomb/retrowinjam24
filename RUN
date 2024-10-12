@@ -1,0 +1,9 @@
+#!/bin/sh
+
+Xephyr :1 -ac -screen 800x600x8 -retro &
+
+DISPLAY=:1
+export DISPLAY
+
+#mwm &
+DISPLAY=:1 xclock

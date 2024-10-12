@@ -12,3 +12,6 @@ data/
 datasrc/
 Debug/
 Release/
+*.json
+game
+.cache/
