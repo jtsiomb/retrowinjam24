@@ -3,8 +3,17 @@
 #include <X11/Xlib.h>
 #include "gfx.h"
 
+
+struct gfximage *gfx_front, *gfx_back;
+
+
 int gfx_init(void)
 {
+	if(!(gfx_front = calloc(2, sizeof *gfx_front))) {
+		fprintf(stderr, "failed to allocate memory\n");
+		return -1;
+	}
+	gfx_back = gfx_front + 1;
 	return 0;
 }
 
@@ -24,6 +33,18 @@ int gfx_setmode(int modeidx)
 
 int gfx_setup(int xsz, int ysz, int bpp, unsigned int flags)
 {
+	int i;
+
+	for(i=0; i<2; i++) {
+		gfx_front[i].width = xsz;
+		gfx_front[i].height = ysz;
+		gfx_front[i].bpp = bpp;		/* TODO conversions */
+	}
+
+	if(!(gfx_back->pixels = malloc(xsz * ysz * bpp / 8))) {
+		fprintf(stderr, "failed to allocate back buffer\n");
+		return -1;
+	}
 	return 0;
 }
 

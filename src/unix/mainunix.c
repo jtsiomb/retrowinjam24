@@ -6,10 +6,6 @@
 #include "gfx.h"
 #include "options.h"
 
-struct gfxmode *gfx_modes, *gfx_curmode;
-int gfx_num_modes;
-struct gfximage *gfx_front, *gfx_back;
-
 
 static int create_win(int xsz, int ysz, const char *title);
 static void handle_event(XEvent *ev);
