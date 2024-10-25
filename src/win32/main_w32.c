@@ -9,6 +9,8 @@
 #define WCNAME	"w32jamwin"
 
 HWND win;
+unsigned long time_msec;
+static unsigned long start_time;
 
 static int win_width, win_height;
 static int quit;
@@ -19,10 +21,9 @@ static LRESULT CALLBACK handle_msg(HWND win, unsigned int msg, WPARAM wparam, LP
 
 int WINAPI WinMain(HINSTANCE hinst, HINSTANCE hprev, char *cmdline, int showcmd)
 {
-	int res;
 	MSG msg;
 	RECT rect;
-	unsigned long start_time, msec, nframes;
+	unsigned long msec, nframes;
 
 	log_start("game.log");
 	load_options("game.cfg");
@@ -47,18 +48,24 @@ int WINAPI WinMain(HINSTANCE hinst, HINSTANCE hprev, char *cmdline, int showcmd)
 			if(quit) goto end;
 		}
 
+		time_msec = game_getmsec();
 		game_draw();
 		nframes++;
 	}
 
 end:
-	msec = timeGetTime() - start_time;
+	msec = game_getmsec();
 	printf("shutting down, avg fps: %.2f\n", (float)nframes / ((float)msec / 1000.0f));
 	game_cleanup();
 	log_stop();
 	if(win) DestroyWindow(win);
 	UnregisterClass(WCNAME, hinst);
 	return 0;
+}
+
+unsigned long game_getmsec(void)
+{
+	return timeGetTime() - start_time;
 }
 
 static int create_win(int width, int height, const char *title)
@@ -107,6 +114,8 @@ static int create_win(int width, int height, const char *title)
 		return -1;
 	}
 	ShowWindow(win, 1);
+	BringWindowToTop(win);
+	SetForegroundWindow(win);
 
 	return 0;
 }

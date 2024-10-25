@@ -1,4 +1,4 @@
-obj = src\win32\main_w32.obj src\win32\gfx.obj \
+obj = src\win32\main_w32.obj src\win32\gfx.obj src\win32\ddutil.obj \
 	  src\options.obj src\dynarr.obj src\treestor.obj src\ts_text.obj \
 	  src\game.obj src\logger.obj
 bin = game.exe

@@ -97,6 +97,14 @@ SOURCE=.\src\config.h
 # End Source File
 # Begin Source File
 
+SOURCE=.\src\win32\ddutil.c
+# End Source File
+# Begin Source File
+
+SOURCE=.\src\win32\ddutil.h
+# End Source File
+# Begin Source File
+
 SOURCE=.\src\dynarr.c
 # End Source File
 # Begin Source File
@@ -106,6 +114,10 @@ SOURCE=.\src\dynarr.h
 # Begin Source File
 
 SOURCE=.\src\game.c
+# End Source File
+# Begin Source File
+
+SOURCE=.\src\game.h
 # End Source File
 # Begin Source File
 
