@@ -313,13 +313,6 @@ int gfx_setup(int xsz, int ysz, int bpp, unsigned int flags)
 		}
 	}
 
-	if((res = IDirectDraw2_CreateClipper(ddraw, 0, &clipper, 0)) != 0) {
-		MessageBox(win, dderrstr(res), "failed to create clipper", MB_OK);
-		goto err;
-	}
-	IDirectDrawClipper_SetHWnd(clipper, 0, win);
-	IDirectDrawSurface_SetClipper(ddfront, clipper);
-
 	fullscreen = flags & GFX_FULLSCREEN;
 
 	/* figure out initial client area */
@@ -335,6 +328,13 @@ int gfx_setup(int xsz, int ysz, int bpp, unsigned int flags)
 		AdjustWindowRect(&rect, ws, 0);
 		client_xoffs = -rect.left;
 		client_yoffs = -rect.top;
+
+		/*if((res = IDirectDraw2_CreateClipper(ddraw, 0, &clipper, 0)) != 0) {
+			MessageBox(win, dderrstr(res), "failed to create clipper", MB_OK);
+			goto err;
+		}
+		IDirectDrawClipper_SetHWnd(clipper, 0, win);
+		IDirectDrawSurface_SetClipper(ddfront, clipper);*/
 	}
 
 	return 0;
