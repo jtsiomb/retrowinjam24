@@ -7,10 +7,14 @@
 #include "options.h"
 
 
+static struct gfximage sprsheet;
+
+
 int game_init(void)
 {
-	int i, vmidx;
+	int i, j, vmidx;
 	struct gfxcolor pal[256];
+	unsigned char *pptr;
 
 	if(gfx_init() == -1) {
 		return -1;
@@ -50,6 +54,27 @@ windowed:
 	}
 	gfx_setcolors(0, 256, pal);
 
+	/* test the blitter */
+	if(gfx_imginit(&sprsheet, 32, 32, 8) == -1) {
+		goto err;
+	}
+	gfx_imgstart(&sprsheet);
+	pptr = sprsheet.pixels;
+	for(i=0; i<32; i++) {
+		float y = (float)i / 15.5f - 1.0f;
+		for(j=0; j<32; j++) {
+			float x = (float)j / 15.5f - 1.0f;
+			float d = x * x + y * y;
+			if(d <= 1.0f) {
+				*pptr++ = 128;
+			} else {
+				*pptr++ = 0;
+			}
+		}
+	}
+	gfx_imgend(&sprsheet);
+	gfx_imgkey(&sprsheet, 0);
+
 	return 0;
 
 err:
@@ -70,6 +95,7 @@ void game_draw(void)
 	float tsec = (float)time_msec / 1000.0f;
 
 	gfx_fill(gfx_back, 4, 0);
+	gfx_blitkey(gfx_back, 300, 300, &sprsheet, 0);
 
 	if(!gfx_imgstart(gfx_back)) {
 		goto flip;

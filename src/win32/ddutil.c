@@ -55,7 +55,7 @@ void ddblit(IDirectDrawSurface *dest, RECT *drect, IDirectDrawSurface *src,
 	HRESULT res;
 
 	for(i=0; i<256; i++) {
-		if((res = IDirectDrawSurface_Blt(dest, drect, src, srect, flags, fx)) == 0) {
+		if((res = IDirectDrawSurface_BltFast(dest, drect, src, srect, flags, fx)) == 0) {
 			return;
 		}
 #ifdef DDWAIT_DEBUG

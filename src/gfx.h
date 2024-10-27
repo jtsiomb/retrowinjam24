@@ -7,6 +7,7 @@ enum {
 	GFX_IMG_VIDMEM	= 1
 };
 
+/* gfx_setup flags */
 enum { GFX_WINDOWED, GFX_FULLSCREEN };
 
 struct gfxcolor {
@@ -57,6 +58,9 @@ void gfx_viewport(int x, int y, int width, int height);
 
 void gfx_setcolor(int idx, int r, int g, int b);
 void gfx_setcolors(int start, int count, struct gfxcolor *colors);
+
+int gfx_imginit(struct gfximage *img, int x, int y, int bpp);
+void gfx_imgdestroy(struct gfximage *img);
 
 /* call imgstart to get a pointer to the pixel buffer, and imgend when done */
 void *gfx_imgstart(struct gfximage *img);

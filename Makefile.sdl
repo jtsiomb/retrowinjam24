@@ -1,0 +1,27 @@
+src = $(wildcard src/*.c) $(wildcard src/sdl/*.c)
+obj = $(src:.c=.o)
+dep = $(src:.c=.d)
+bin = sdlgame
+
+#opt = -O3
+dbg = -g
+warn = -pedantic -Wall
+
+CFLAGS = $(warn) $(opt) $(dbg) -Isrc -Isrc/sdl `sdl-config --cflags` -MMD
+LDFLAGS = `sdl-config --libs` -lm
+
+$(bin): $(obj)
+	$(CC) -o $@ $(obj) $(LDFLAGS)
+
+-include $(dep)
+
+.PHONY: clean
+clean:
+	rm -f $(obj)
+	rm -f $(bin)
+
+.PHONY: cleandep
+cleandep:
+	rm -f $(dep)
+
+# vi:ft=make:

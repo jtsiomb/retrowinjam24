@@ -128,6 +128,7 @@ void gfx_destroy(void)
 	if(fullscreen) {
 		IDirectDraw2_RestoreDisplayMode(ddraw);
 		IDirectDraw2_SetCooperativeLevel(ddraw, 0, DDSCL_NORMAL);
+		ShowCursor(1);
 	}
 	if(clipper) {
 		IDirectDrawClipper_Release(clipper);
@@ -318,6 +319,8 @@ int gfx_setup(int xsz, int ysz, int bpp, unsigned int flags)
 	/* figure out initial client area */
 	if(fullscreen) {
 		client_xoffs = client_yoffs = 0;
+
+		ShowCursor(0);
 	} else {
 		/* for windowed we need to compute the client area offset */
 		int ws = GetWindowLong(win, GWL_STYLE);
@@ -328,6 +331,8 @@ int gfx_setup(int xsz, int ysz, int bpp, unsigned int flags)
 		AdjustWindowRect(&rect, ws, 0);
 		client_xoffs = -rect.left;
 		client_yoffs = -rect.top;
+
+		ShowCursor(1);
 
 		/*if((res = IDirectDraw2_CreateClipper(ddraw, 0, &clipper, 0)) != 0) {
 			MessageBox(win, dderrstr(res), "failed to create clipper", MB_OK);
@@ -381,6 +386,40 @@ void gfx_setcolors(int start, int count, struct gfxcolor *colors)
 	}
 	if(ddpal) {
 		IDirectDrawPalette_SetEntries(ddpal, 0, start, count, pal + start);
+	}
+}
+
+int gfx_imginit(struct gfximage *img, int x, int y, int bpp)
+{
+	HRESULT res;
+	DDSURFACEDESC ddsd = {0};
+	IDirectDrawSurface *surf;
+
+	ddsd.dwSize = sizeof ddsd;
+	ddsd.dwFlags = DDSD_WIDTH | DDSD_HEIGHT | DDSD_CAPS;
+	ddsd.dwWidth = x;
+	ddsd.dwHeight = y;
+	ddsd.ddsCaps.dwCaps = DDSCAPS_OFFSCREENPLAIN/* | DDSCAPS_VIDEOMEMORY*/;
+
+	if((res = IDirectDraw2_CreateSurface(ddraw, &ddsd, &surf, 0)) != 0) {
+		fprintf(stderr, "failed to create image surface: %s\n", dderrstr(res));
+		return -1;
+	}
+
+	memset(img, 0, sizeof *img);
+	img->width = x;
+	img->height = y;
+	img->bpp = bpp;
+	img->data = surf;
+	return 0;
+}
+
+void gfx_imgdestroy(struct gfximage *img)
+{
+	IDirectDrawSurface *surf = img->data;
+	if(surf) {
+		IDirectDrawSurface_Release(surf);
+		img->data = 0;
 	}
 }
 
@@ -448,14 +487,60 @@ void gfx_fill(struct gfximage *img, unsigned int color, struct gfxrect *rect)
 /* set which color to be used as a colorkey for transparent blits */
 void gfx_imgkey(struct gfximage *img, int ckey)
 {
+	DDCOLORKEY ddck;
+	IDirectDrawSurface *surf = img->data;
+
+	if(ckey >= 0) {
+		ddck.dwColorSpaceLowValue = ddck.dwColorSpaceHighValue = ckey;
+		IDirectDrawSurface_SetColorKey(surf, DDCKEY_SRCBLT, &ddck);
+	}
+	img->ckey = ckey;
 }
 
 void gfx_blit(struct gfximage *dest, int x, int y, struct gfximage *src, struct gfxrect *srect)
 {
+	RECT dr, sr;
+
+	if(srect) {
+		sr.left = srect->x;
+		sr.top = srect->y;
+		sr.right = srect->x + srect->width;
+		sr.bottom = srect->y + srect->height;
+	} else {
+		sr.left = sr.top = 0;
+		sr.right = src->width;
+		sr.bottom = src->height;
+	}
+
+	dr.left = x;
+	dr.top = y;
+	dr.right = x + sr.right - sr.left;
+	dr.bottom = y + sr.bottom - sr.top;
+
+	ddblit(dest->data, &dr, src->data, &sr, DDBLT_WAIT, 0);
 }
 
 void gfx_blitkey(struct gfximage *dest, int x, int y, struct gfximage *src, struct gfxrect *srect)
 {
+	RECT dr, sr;
+
+	if(srect) {
+		sr.left = srect->x;
+		sr.top = srect->y;
+		sr.right = srect->x + srect->width;
+		sr.bottom = srect->y + srect->height;
+	} else {
+		sr.left = sr.top = 0;
+		sr.right = src->width;
+		sr.bottom = src->height;
+	}
+
+	dr.left = x;
+	dr.top = y;
+	dr.right = x + sr.right - sr.left;
+	dr.bottom = y + sr.bottom - sr.top;
+
+	ddblit(dest->data, &dr, src->data, &sr, DDBLT_WAIT | DDBLT_KEYSRC, 0);
 }
 
 void gfx_swapbuffers(int vsync)
