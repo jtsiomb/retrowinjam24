@@ -66,6 +66,8 @@ void gfx_imgdestroy(struct gfximage *img);
 void *gfx_imgstart(struct gfximage *img);
 void gfx_imgend(struct gfximage *img);
 
+int gfx_loadimg(struct gfximage *img, const char *fname);
+
 void gfx_fill(struct gfximage *img, unsigned int color, struct gfxrect *rect);
 
 /* set which color to be used as a colorkey for transparent blits */

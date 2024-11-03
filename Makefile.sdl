@@ -7,10 +7,13 @@ bin = sdlgame
 dbg = -g
 warn = -pedantic -Wall
 
-CFLAGS = $(warn) $(opt) $(dbg) -Isrc -Isrc/sdl `sdl-config --cflags` -MMD
-LDFLAGS = `sdl-config --libs` -lm
+incdir = -Isrc -Isrc/sdl -Ilibs/imago/src
+libdir = -Llibs/unix
 
-$(bin): $(obj)
+CFLAGS = $(warn) $(opt) $(dbg) -Isrc -Isrc/sdl `sdl-config --cflags` -MMD
+LDFLAGS = $(libdir) `sdl-config --libs` -limago -lm
+
+$(bin): $(obj) libs
 	$(CC) -o $@ $(obj) $(LDFLAGS)
 
 -include $(dep)
@@ -23,5 +26,19 @@ clean:
 .PHONY: cleandep
 cleandep:
 	rm -f $(dep)
+
+.PHONY: libs
+libs: imago
+
+.PHONY: cleanlibs
+cleanlibs: clean-imago
+
+.PHONY: imago
+imago:
+	$(MAKE) -C libs/imago
+
+.PHONY: clean-imago
+clean-imago:
+	$(MAKE) -C libs/imago clean
 
 # vi:ft=make:

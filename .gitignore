@@ -2,6 +2,7 @@
 *.d
 *.obj
 *.swp
+*.a
 *.lib
 *.exe
 Makefile
