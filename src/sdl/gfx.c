@@ -304,10 +304,12 @@ void gfx_blit(struct gfximage *dest, int x, int y, struct gfximage *src, struct 
 
 	dr.x = x;
 	dr.y = y;
-	dr.w = x + sr.w;
-	dr.h = y + sr.h;
+	dr.w = sr.w;
+	dr.h = sr.h;
 
-	SDL_BlitSurface(srcsurf, &sr, destsurf, &dr);
+	if(SDL_BlitSurface(srcsurf, &sr, destsurf, &dr) != 0) {
+		fprintf(stderr, "SDL_BlitSurface failed\n");
+	}
 }
 
 void gfx_blitkey(struct gfximage *dest, int x, int y, struct gfximage *src, struct gfxrect *srect)

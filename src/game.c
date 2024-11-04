@@ -4,10 +4,11 @@
 #include <math.h>
 #include "game.h"
 #include "gfx.h"
+#include "tiles.h"
 #include "options.h"
 
 
-static struct gfximage sprsheet;
+static struct tileset tset;
 
 
 int game_init(void)
@@ -46,34 +47,16 @@ windowed:
 		}
 	}
 
-	for(i=0; i<256; i++) {
-		float t = (float)i * 3.14159265f / 128.0f;
-		pal[i].r = (int)((cos(t) * 0.5f + 0.5f) * 255.0f);
-		pal[i].g = (int)((sin(t) * 0.5f + 0.5f) * 255.0f);
-		pal[i].b = (int)((-cos(t) * 0.5f + 0.5f) * 255.0f);
-	}
-	gfx_setcolors(0, 256, pal);
-
-	/* test the blitter */
-	if(gfx_imginit(&sprsheet, 32, 32, 8) == -1) {
+	if(load_tileset(&tset, "data/test.set") == -1) {
 		goto err;
 	}
-	gfx_imgstart(&sprsheet);
-	pptr = sprsheet.pixels;
-	for(i=0; i<32; i++) {
-		float y = (float)i / 15.5f - 1.0f;
-		for(j=0; j<32; j++) {
-			float x = (float)j / 15.5f - 1.0f;
-			float d = x * x + y * y;
-			if(d <= 1.0f) {
-				*pptr++ = 128;
-			} else {
-				*pptr++ = 0;
-			}
-		}
+
+	for(i=0; i<tset.img->ncolors; i++) {
+		pal[i].r = tset.img->cmap[i].r;
+		pal[i].g = tset.img->cmap[i].g;
+		pal[i].b = tset.img->cmap[i].b;
 	}
-	gfx_imgend(&sprsheet);
-	gfx_imgkey(&sprsheet, 0);
+	gfx_setcolors(0, tset.img->ncolors, pal);
 
 	return 0;
 
@@ -95,7 +78,7 @@ void game_draw(void)
 	float tsec = (float)time_msec / 1000.0f;
 
 	gfx_fill(gfx_back, 4, 0);
-	gfx_blitkey(gfx_back, 300, 300, &sprsheet, 0);
+	blit_tile(gfx_back, 300, 300, &tset, 0);
 
 	if(!gfx_imgstart(gfx_back)) {
 		goto flip;

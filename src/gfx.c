@@ -17,11 +17,10 @@ int gfx_loadimg(struct gfximage *img, const char *fname)
 	}
 	cmap = img_colormap(&pixmap);
 
-	memset(img, 0, sizeof *img);
-	img->width = pixmap.width;
-	img->height = pixmap.height;
-	img->bpp = 8;
-	img->ckey = -1;
+	if(gfx_imginit(img, pixmap.width, pixmap.height, 8) == -1) {
+		img_destroy(&pixmap);
+		return -1;
+	}
 	img->pixels = pixmap.pixels;
 	img->ncolors = cmap->ncolors;
 

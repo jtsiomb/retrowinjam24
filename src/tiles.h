@@ -15,8 +15,12 @@ struct tileset {
 struct tile {
 	char *name;
 	int xoffs, yoffs;
+	int xsz, ysz;
 };
 
 int load_tileset(struct tileset *tset, const char *fname);
+void destroy_tileset(struct tileset *tset);
+
+void blit_tile(struct gfximage *dest, int x, int y, struct tileset *tset, int idx);
 
 #endif	/* TILES_H_ */
