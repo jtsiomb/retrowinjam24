@@ -121,7 +121,11 @@ SOURCE=.\src\game.h
 # End Source File
 # Begin Source File
 
-SOURCE=.\src\win32\gfx.c
+SOURCE=.\src\gfx.c
+# End Source File
+# Begin Source File
+
+SOURCE=.\src\win32\gfxdx.c
 # End Source File
 # Begin Source File
 
