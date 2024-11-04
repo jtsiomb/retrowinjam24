@@ -214,6 +214,7 @@ int gfx_imginit(struct gfximage *img, int x, int y, int bpp)
 	img->height = y;
 	img->bpp = bpp;
 	img->data = surf;
+	img->ckey = -1;
 	return 0;
 }
 
