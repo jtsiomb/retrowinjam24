@@ -67,6 +67,7 @@ void *gfx_imgstart(struct gfximage *img);
 void gfx_imgend(struct gfximage *img);
 
 int gfx_loadimg(struct gfximage *img, const char *fname);
+int gfx_saveimg(struct gfximage *img, const char *fname);
 
 void gfx_fill(struct gfximage *img, unsigned int color, struct gfxrect *rect);
 
