@@ -13,9 +13,8 @@ static struct tileset tset;
 
 int game_init(void)
 {
-	int i, j, vmidx;
+	int i, vmidx;
 	struct gfxcolor pal[256];
-	unsigned char *pptr;
 
 	if(gfx_init() == -1) {
 		return -1;

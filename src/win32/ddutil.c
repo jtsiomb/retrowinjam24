@@ -19,7 +19,7 @@ void *ddlocksurf(IDirectDrawSurface *surf, long *pitchret)
 
 	for(i=0; i<256; i++) {
 		if((res = IDirectDrawSurface_Lock(surf, 0, &sd,
-				DDLOCK_SURFACEMEMORYPTR | DDLOCK_WRITEONLY | DDLOCK_WAIT, 0)) == 0) {
+				DDLOCK_SURFACEMEMORYPTR | DDLOCK_WAIT, 0)) == 0) {
 			break;
 		}
 #ifdef DDWAIT_DEBUG
@@ -55,7 +55,37 @@ void ddblit(IDirectDrawSurface *dest, RECT *drect, IDirectDrawSurface *src,
 	HRESULT res;
 
 	for(i=0; i<256; i++) {
-		if((res = IDirectDrawSurface_BltFast(dest, drect, src, srect, flags, fx)) == 0) {
+		if((res = IDirectDrawSurface_Blt(dest, drect, src, srect, flags, fx)) == 0) {
+			return;
+		}
+#ifdef DDWAIT_DEBUG
+		printf("[%lu] blit failed: %s\n", game_getmsec(), dderrstr(res)); fflush(stdout);
+#endif
+		if(res == DDERR_SURFACELOST) {
+			res = IDirectDrawSurface_Restore(dest == ddback ? ddfront : dest);
+			res |= IDirectDrawSurface_Restore(src == ddback ? ddfront : src);
+#ifdef DDWAIT_DEBUG
+			if(res != 0) {
+				printf("failed to restore lost surface\n"); fflush(stdout);
+			}
+#endif
+		}
+	}
+
+#ifdef DDWAIT_DEBUG
+	printf("[%lu] can't blit, giving up\n", game_getmsec());
+	fflush(stdout);
+#endif
+}
+
+void ddblitfast(IDirectDrawSurface *dest, int x, int y, IDirectDrawSurface *src,
+			RECT *srect, unsigned int flags)
+{
+	int i;
+	HRESULT res;
+
+	for(i=0; i<256; i++) {
+		if((res = IDirectDrawSurface_BltFast(dest, x, y, src, srect, flags)) == 0) {
 			return;
 		}
 #ifdef DDWAIT_DEBUG

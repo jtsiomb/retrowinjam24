@@ -60,8 +60,8 @@ LIB32=link.exe -lib
 # PROP BASE Target_Dir ""
 # PROP Use_MFC 0
 # PROP Use_Debug_Libraries 1
-# PROP Output_Dir "imago___Win32_Debug"
-# PROP Intermediate_Dir "imago___Win32_Debug"
+# PROP Output_Dir "Debug"
+# PROP Intermediate_Dir "Debug"
 # PROP Target_Dir ""
 # ADD BASE CPP /nologo /W3 /Gm /GX /ZI /Od /D "WIN32" /D "_DEBUG" /D "_MBCS" /D "_LIB" /YX /FD /GZ /c
 # ADD CPP /nologo /W2 /Gm /GX /ZI /Od /I "zlib" /I "libpng" /I "jpeglib" /D "WIN32" /D "_DEBUG" /D "_MBCS" /D "_LIB" /YX /FD /GZ /c
@@ -85,11 +85,19 @@ LIB32=link.exe -lib
 # PROP Default_Filter "cpp;c;cxx;rc;def;r;odl;idl;hpj;bat;h"
 # Begin Source File
 
+SOURCE=.\src\byteord.c
+# End Source File
+# Begin Source File
+
 SOURCE=.\src\conv.c
 # End Source File
 # Begin Source File
 
 SOURCE=.\src\filejpeg.c
+# End Source File
+# Begin Source File
+
+SOURCE=.\src\filelbm.c
 # End Source File
 # Begin Source File
 
@@ -129,11 +137,11 @@ SOURCE=.\src\imago_gl.c
 # End Source File
 # Begin Source File
 
-SOURCE=.\src\inttypes.h
+SOURCE=.\src\modules.c
 # End Source File
 # Begin Source File
 
-SOURCE=.\src\modules.c
+SOURCE=.\src\quant.c
 # End Source File
 # End Group
 # Begin Group "jpeglib"

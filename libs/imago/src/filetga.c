@@ -26,6 +26,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #ifdef __GNUC__
 #define PACKED	__attribute__((packed))
+#else
+#define PACKED
 #endif
 
 

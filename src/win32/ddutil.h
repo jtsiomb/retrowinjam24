@@ -11,6 +11,8 @@ void *ddlocksurf(IDirectDrawSurface *surf, long *pitchret);
 
 void ddblit(IDirectDrawSurface *dest, RECT *drect, IDirectDrawSurface *src,
 			RECT *srect, unsigned int flags, DDBLTFX *fx);
+void ddblitfast(IDirectDrawSurface *dest, int x, int y, IDirectDrawSurface *src,
+			RECT *srect, unsigned int flags);
 
 void ddflip(IDirectDrawSurface *surf);
 

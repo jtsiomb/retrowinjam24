@@ -522,7 +522,7 @@ void gfx_blit(struct gfximage *dest, int x, int y, struct gfximage *src, struct 
 
 void gfx_blitkey(struct gfximage *dest, int x, int y, struct gfximage *src, struct gfxrect *srect)
 {
-	RECT dr, sr;
+	RECT sr;
 
 	if(srect) {
 		sr.left = srect->x;
@@ -535,12 +535,7 @@ void gfx_blitkey(struct gfximage *dest, int x, int y, struct gfximage *src, stru
 		sr.bottom = src->height;
 	}
 
-	dr.left = x;
-	dr.top = y;
-	dr.right = x + sr.right - sr.left;
-	dr.bottom = y + sr.bottom - sr.top;
-
-	ddblit(dest->data, &dr, src->data, &sr, DDBLT_WAIT | DDBLT_KEYSRC, 0);
+	ddblitfast(dest->data, x, y, src->data, &sr, DDBLTFAST_WAIT | DDBLTFAST_SRCCOLORKEY);
 }
 
 void gfx_swapbuffers(int vsync)
@@ -607,11 +602,8 @@ void gfx_swapbuffers(int vsync)
 	}
 
 	GetWindowRect(win, &rect);
-	rect.left += client_xoffs;
-	rect.right += client_xoffs;
-	rect.top += client_yoffs;
-	rect.bottom += client_yoffs;
-	ddblit(ddfront, &rect, ddback, 0, DDBLT_WAIT, 0);
+	ddblitfast(ddfront, rect.left + client_xoffs, rect.top + client_yoffs,
+			ddback, 0, DDBLT_WAIT);
 }
 
 void gfx_waitvsync(void)

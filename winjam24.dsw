@@ -3,6 +3,18 @@ Microsoft Developer Studio Workspace File, Format Version 6.00
 
 ###############################################################################
 
+Project: "imago"=.\libs\imago\imago.dsp - Package Owner=<4>
+
+Package=<5>
+{{{
+}}}
+
+Package=<4>
+{{{
+}}}
+
+###############################################################################
+
 Project: "winjam24"=.\winjam24.dsp - Package Owner=<4>
 
 Package=<5>
@@ -11,6 +23,9 @@ Package=<5>
 
 Package=<4>
 {{{
+    Begin Project Dependency
+    Project_Dep_Name imago
+    End Project Dependency
 }}}
 
 ###############################################################################
