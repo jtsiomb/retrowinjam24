@@ -36,7 +36,7 @@ int gfx_loadimg(struct gfximage *img, const char *fname)
 		sptr += pixmap.width;
 	}
 	gfx_imgend(img);
-;
+
 	img->ncolors = cmap->ncolors;
 
 	for(i=0; i<cmap->ncolors; i++) {
