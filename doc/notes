@@ -1,0 +1,9 @@
+ in-game coordinate system       level description coordinate system
+           origin                  origin +----------------> U
+              ^                           |
+            /   \                         |
+          /       \                       |
+        /           \                     |
+      /               \                   |
+    /                   \                 |
+V |_                     _| U           V v
