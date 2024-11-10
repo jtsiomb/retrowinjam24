@@ -4,15 +4,24 @@
 #include "game.h"
 #include "options.h"
 
+struct imgdata {
+	SDL_Surface *surf;
+	unsigned int palno;
+};
+
+#define IMGDATA(img)	((struct imgdata*)((img)->data))
+
 struct gfxmode *gfx_modes, *gfx_curmode;
 int gfx_num_modes;
 
 struct gfximage *gfx_front, *gfx_back;
 static struct gfximage swapchain_buf[2];
 static SDL_Color pal[256];
+static int cur_palno;
 
 static struct gfxmode *nextvm;
 static SDL_Surface *fbsurf;
+static struct imgdata fbdata;
 static int fullscreen;
 
 #define SURF_FLAGS	(SDL_HWSURFACE | SDL_HWPALETTE | SDL_DOUBLEBUF)
@@ -94,6 +103,8 @@ int gfx_init(void)
 	gfx_front = swapchain_buf;
 	gfx_back = gfx_front + 1;
 
+	cur_palno = 0;
+
 	printf("Found %d video modes:\n", gfx_num_modes);
 	for(i=0; i<gfx_num_modes; i++) {
 		printf(" - %dx%d %dbpp\n", gfx_modes[i].width, gfx_modes[i].height, gfx_modes[i].bpp);
@@ -150,14 +161,16 @@ int gfx_setup(int xsz, int ysz, int bpp, unsigned int flags)
 		}
 	}
 
+	fbdata.surf = fbsurf;
+	fbdata.palno = 0;
+
 	for(i=0; i<2; i++) {
 		gfx_front[i].width = xsz;
 		gfx_front[i].height = ysz;
 		gfx_front[i].flags = GFX_IMG_VIDMEM;
+		gfx_front[i].data = &fbdata;
 	}
 	gfx_front->bpp = bpp;
-	gfx_front->data = fbsurf;
-	gfx_back->data = fbsurf;
 
 	if(bpp <= 8) {
 		/* if colormaps are involved at all, initialize the default palette */
@@ -184,6 +197,7 @@ void gfx_setcolor(int idx, int r, int g, int b)
 	pal[idx].b= b;
 
 	SDL_SetColors(fbsurf, pal + idx, idx, 1);
+	fbdata.palno++;
 }
 
 void gfx_setcolors(int start, int count, struct gfxcolor *colors)
@@ -198,40 +212,51 @@ void gfx_setcolors(int start, int count, struct gfxcolor *colors)
 	}
 
 	SDL_SetColors(fbsurf, pal + start, start, count);
+	fbdata.palno++;
 }
 
 int gfx_imginit(struct gfximage *img, int x, int y, int bpp)
 {
-	SDL_Surface *surf;
+	struct imgdata *data;
 
-	if(!(surf = SDL_CreateRGBSurface(SDL_SWSURFACE, x, y, bpp, 0, 0, 0, 0))) {
-		fprintf(stderr, "failed to create image surface\n");
+	if(!(data = calloc(1, sizeof *data))) {
+		fprintf(stderr, "failed to create image data\n");
 		return -1;
 	}
+	if(!(data->surf = SDL_CreateRGBSurface(SDL_SWSURFACE, x, y, bpp, 0, 0, 0, 0))) {
+		fprintf(stderr, "failed to create image surface\n");
+		free(data);
+		return -1;
+	}
+	SDL_SetColors(data->surf, pal, 0, 256);
 
 	memset(img, 0, sizeof *img);
 	img->width = x;
 	img->height = y;
 	img->bpp = bpp;
-	img->data = surf;
+	img->data = data;
 	img->ckey = -1;
 	return 0;
 }
 
 void gfx_imgdestroy(struct gfximage *img)
 {
-	SDL_Surface *surf = img->data;
-	if(surf) {
-		SDL_FreeSurface(surf);
+	struct imgdata *data = img->data;
+	if(!data) return;
+	if(data->surf) {
+		SDL_FreeSurface(data->surf);
 		img->data = 0;
+	}
+	if(data != &fbdata) {
+		free(data);
 	}
 }
 
 void *gfx_imgstart(struct gfximage *img)
 {
-	SDL_Surface *surf = img->data;
+	SDL_Surface *surf;
 
-	if(surf) {
+	if(img->data && (surf = IMGDATA(img)->surf)) {
 		if(SDL_MUSTLOCK(surf)) {
 			SDL_LockSurface(surf);
 		}
@@ -243,8 +268,9 @@ void *gfx_imgstart(struct gfximage *img)
 
 void gfx_imgend(struct gfximage *img)
 {
-	SDL_Surface *surf = img->data;
-	if(surf) {
+	SDL_Surface *surf;
+
+	if(img->data && (surf = IMGDATA(img)->surf)) {
 		if(SDL_MUSTLOCK(surf)) {
 			SDL_UnlockSurface(surf);
 		}
@@ -253,10 +279,10 @@ void gfx_imgend(struct gfximage *img)
 
 void gfx_fill(struct gfximage *img, unsigned int color, struct gfxrect *rect)
 {
-	SDL_Surface *surf = img->data;
+	SDL_Surface *surf;
 	SDL_Rect r, *rp = 0;
 
-	if(!surf) return;
+	if(!img->data || !(surf = IMGDATA(img)->surf)) return;
 
 	if(rect) {
 		rp = &r;
@@ -271,9 +297,9 @@ void gfx_fill(struct gfximage *img, unsigned int color, struct gfxrect *rect)
 
 void gfx_imgkey(struct gfximage *img, int ckey)
 {
-	SDL_Surface *surf = img->data;
+	SDL_Surface *surf;
 
-	if(!surf) return;
+	if(!img->data || !(surf = IMGDATA(img)->surf)) return;
 
 	if(ckey >= 0) {
 		SDL_SetColorKey(surf, SDL_SRCCOLORKEY, ckey);
@@ -285,11 +311,19 @@ void gfx_imgkey(struct gfximage *img, int ckey)
 
 void gfx_blit(struct gfximage *dest, int x, int y, struct gfximage *src, struct gfxrect *srect)
 {
-	SDL_Surface *destsurf, *srcsurf;
+	struct imgdata *sdata, *ddata;
 	SDL_Rect dr, sr;
 
-	if(!(destsurf = dest->data) || !(srcsurf = src->data)) {
+	if(!dest->data || !src->data) {
 		return;
+	}
+	if(!(ddata = IMGDATA(dest)) || !(sdata = IMGDATA(src))) {
+		return;
+	}
+
+	if(sdata->palno < ddata->palno) {
+		SDL_SetColors(sdata->surf, pal, 0, 256);
+		sdata->palno = cur_palno;
 	}
 
 	if(srect) {
@@ -308,7 +342,7 @@ void gfx_blit(struct gfximage *dest, int x, int y, struct gfximage *src, struct 
 	dr.w = sr.w;
 	dr.h = sr.h;
 
-	if(SDL_BlitSurface(srcsurf, &sr, destsurf, &dr) != 0) {
+	if(SDL_BlitSurface(sdata->surf, &sr, ddata->surf, &dr) != 0) {
 		fprintf(stderr, "SDL_BlitSurface failed\n");
 	}
 }
