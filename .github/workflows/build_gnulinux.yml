@@ -1,0 +1,28 @@
+name: GNU/Linux build
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: install dependencies
+      run: sudo apt-get install libsdl1.2-dev
+
+    - name: build game
+      run: |
+        make
+
+    - uses: actions/upload-artifact@v4
+      with:
+        name: game-gnulinux
+        path: |
+          sdlgame
+
+# vi:ts=2 sts=2 sw=2 expandtab:
