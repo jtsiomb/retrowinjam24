@@ -6,15 +6,13 @@
 #include "gfx.h"
 #include "tiles.h"
 #include "options.h"
+#include "screen.h"
 
-
-static struct tileset tset;
-
+struct level lvl;
 
 int game_init(void)
 {
-	int i, vmidx;
-	struct gfxcolor pal[256];
+	int vmidx;
 
 	if(gfx_init() == -1) {
 		return -1;
@@ -46,16 +44,8 @@ windowed:
 		}
 	}
 
-	if(load_tileset(&tset, "data/test.set") == -1) {
-		goto err;
-	}
-
-	for(i=0; i<tset.img->ncolors; i++) {
-		pal[i].r = tset.img->cmap[i].r;
-		pal[i].g = tset.img->cmap[i].g;
-		pal[i].b = tset.img->cmap[i].b;
-	}
-	gfx_setcolors(0, tset.img->ncolors, pal);
+	if(init_leveled() == -1) return -1;
+	start_screen(screens[0]);
 
 	return 0;
 
@@ -77,8 +67,8 @@ void game_draw(void)
 	float tsec = (float)time_msec / 1000.0f;
 
 	gfx_fill(gfx_back, 4, 0);
-	blit_tile(gfx_back, 300, 300, &tset, 0);
 
+	/*
 	if(!gfx_imgstart(gfx_back)) {
 		goto flip;
 	}
@@ -104,8 +94,31 @@ void game_draw(void)
 	}
 
 	gfx_imgend(gfx_back);
+	*/
+
+	curscr->draw();
 
 flip:
 	gfx_swapbuffers(1);
 }
 
+
+void game_keyboard(int key, int press)
+{
+	if(press && key == 27) {
+		game_quit();
+		return;
+	}
+
+	curscr->keyb(key, press);
+}
+
+void game_mousebtn(int bn, int st, int x, int y)
+{
+	curscr->mbutton(bn, st, x, y);
+}
+
+void game_mousemove(int x, int y)
+{
+	curscr->mmotion(x, y);
+}

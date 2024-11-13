@@ -18,6 +18,9 @@ struct tile {
 	int xsz, ysz;
 };
 
+struct tileset *alloc_tileset(void);
+void free_tileset(struct tileset *tset);
+
 int load_tileset(struct tileset *tset, const char *fname);
 void destroy_tileset(struct tileset *tset);
 

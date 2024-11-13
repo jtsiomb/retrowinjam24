@@ -4,6 +4,18 @@
 #include "tiles.h"
 #include "treestor.h"
 
+struct tileset *alloc_tileset(void)
+{
+	return calloc(1, sizeof(struct tileset));
+}
+
+void free_tileset(struct tileset *tset)
+{
+	if(!tset) return;
+	destroy_tileset(tset);
+	free(tset);
+}
+
 int load_tileset(struct tileset *tset, const char *fname)
 {
 	struct ts_node *tsroot, *tsnode;
