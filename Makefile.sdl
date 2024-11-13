@@ -10,7 +10,7 @@ warn = -pedantic -Wall
 incdir = -Isrc -Isrc/sdl -Ilibs/imago/src
 libdir = -Llibs/unix
 
-CFLAGS = $(warn) $(opt) $(dbg) -Isrc -Isrc/sdl `sdl-config --cflags` -MMD
+CFLAGS = $(warn) $(opt) $(dbg) $(incdir) `sdl-config --cflags` -MMD
 LDFLAGS = $(libdir) `sdl-config --libs` -limago -lm
 
 $(bin): $(obj) libs
