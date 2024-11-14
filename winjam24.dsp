@@ -153,6 +153,10 @@ SOURCE=.\src\options.h
 # End Source File
 # Begin Source File
 
+SOURCE=.\src\screen.c
+# End Source File
+# Begin Source File
+
 SOURCE=.\src\tiles.c
 # End Source File
 # Begin Source File
