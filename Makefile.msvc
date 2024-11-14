@@ -14,7 +14,7 @@ CC = cl
 CFLAGS = /nologo $(opt) $(dbg) $(warn) $(inc)
 LDFLAGS = /nologo /MD /link $(libdir) ddraw.lib user32.lib gdi32.lib winmm.lib imago.lib
 
-$(bin): $(obj)
+$(bin): $(obj) libs\w32\imago.lib
 	$(CC) /Fe$@ $(obj) $(LDFLAGS)
 
 .c.obj:
@@ -23,3 +23,7 @@ $(bin): $(obj)
 clean:
 	del $(obj)
 	del $(bin)
+
+libs\w32\imago.lib:
+	cd libs\imago
+	$(MAKE) /nologo -f Makefile.msvc
