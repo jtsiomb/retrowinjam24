@@ -133,6 +133,18 @@ SOURCE=.\src\win32\gfxdx.c
 # End Source File
 # Begin Source File
 
+SOURCE=.\src\level.c
+# End Source File
+# Begin Source File
+
+SOURCE=.\src\level.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\src\leveled.c
+# End Source File
+# Begin Source File
+
 SOURCE=.\src\logger.c
 # End Source File
 # Begin Source File
@@ -154,6 +166,10 @@ SOURCE=.\src\options.h
 # Begin Source File
 
 SOURCE=.\src\screen.c
+# End Source File
+# Begin Source File
+
+SOURCE=.\src\screen.h
 # End Source File
 # Begin Source File
 
