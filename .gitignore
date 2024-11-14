@@ -19,3 +19,5 @@ sdlgame
 core
 .cache/
 *.pdb
+*.user
+.vs/
