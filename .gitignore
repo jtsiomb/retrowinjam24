@@ -18,3 +18,4 @@ game
 sdlgame
 core
 .cache/
+*.pdb

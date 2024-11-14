@@ -26,7 +26,7 @@ See COPYING for details.
 Build
 -----
 Grab the data files from subversion:
-    svn co svn://nuclear.mutantstargoat.com/winjam24 data
+    svn co svn://nuclear.mutantstargoat.com/datadirs/winjam24 data
 
 To build the retro win32 version using DirectX 2.0, either use the msvc6
 project (`winjam24.dsw`), or run `nmake -f Makefile.msvc`.

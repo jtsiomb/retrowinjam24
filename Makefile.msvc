@@ -1,17 +1,18 @@
 obj = src\win32\main_w32.obj src\win32\gfxdx.obj src\win32\ddutil.obj \
-	  src\gfx.obj src\tiles.obj src\options.obj src\dynarr.obj \
-	  src\treestor.obj src\ts_text.obj src\game.obj src\logger.obj
+	  src\dynarr.obj src\game.obj src\gfx.obj src\level.obj src\leveled.obj \
+	  src\logger.obj src\options.obj src\screen.obj src\tiles.obj \
+	  src\treestor.obj src\ts_text.obj
 bin = game.exe
 
 #opt = /O2 /G5
 dbg = /Zi
 warn = /W3
 inc = /I src /I src\win32 /I libs\imago\src
-libdir = /LIBPATH:libs\imago\Debug
+libdir = /LIBPATH:libs\w32
 
 CC = cl
 CFLAGS = /nologo $(opt) $(dbg) $(warn) $(inc)
-LDFLAGS = /nologo /MD /link ddraw.lib user32.lib gdi32.lib winmm.lib imago.lib
+LDFLAGS = /nologo /MD /link $(libdir) ddraw.lib user32.lib gdi32.lib winmm.lib imago.lib
 
 $(bin): $(obj)
 	$(CC) /Fe$@ $(obj) $(LDFLAGS)

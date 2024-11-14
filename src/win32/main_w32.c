@@ -63,6 +63,11 @@ end:
 	return 0;
 }
 
+void game_quit(void)
+{
+	quit = 1;
+}
+
 unsigned long game_getmsec(void)
 {
 	return timeGetTime() - start_time;

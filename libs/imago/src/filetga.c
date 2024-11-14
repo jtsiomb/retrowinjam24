@@ -206,13 +206,13 @@ static int read_tga(struct img_pixmap *img, struct img_io *io)
 		return -1;
 	}
 
-	for(i=0; i<y; i++) {
+	for(i=0; i<(int)y; i++) {
 		unsigned char *ptr;
 		int j, k;
 
 		ptr = (unsigned char*)img->pixels + ((hdr.img_desc & 0x20) ? i : y - (i + 1)) * x * pixel_bytes;
 
-		for(j=0; j<x; j++) {
+		for(j=0; j<(int)x; j++) {
 			/* if the image is raw, then just read the next pixel */
 			if(!IS_RLE(hdr.img_type)) {
 				if(read_pixel(io, fmt, ptr) == -1) {

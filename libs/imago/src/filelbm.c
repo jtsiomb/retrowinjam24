@@ -21,7 +21,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
-#if defined(__WATCOMC__) || defined(WIN32) || defined(MSDOS)
+#if defined(__WATCOMC__) || defined(_WIN32) || defined(MSDOS)
 #include <malloc.h>
 #else
 #ifndef __FreeBSD__
@@ -337,7 +337,7 @@ static int read_body_ilbm(struct img_io *io, struct bitmap_header *bmhd, struct 
 					return -1;
 				}
 			} else {
-				if(io->read(rowbuf, rowsz, io->uptr) < rowsz) {
+				if((int)io->read(rowbuf, rowsz, io->uptr) < rowsz) {
 					return -1;
 				}
 			}
@@ -386,7 +386,7 @@ static int read_body_pbm(struct img_io *io, struct bitmap_header *bmhd, struct i
 
 	} else {
 		/* uncompressed */
-		if(io->read(img->pixels, npixels, io->uptr) < npixels) {
+		if((int)io->read(img->pixels, npixels, io->uptr) < npixels) {
 			return -1;
 		}
 	}
@@ -406,7 +406,7 @@ static int read_compressed_scanline(struct img_io *io, unsigned char *scanline, 
 
 		if(ctl >= 0) {
 			count = ctl + 1;
-			if(io->read(scanline, count, io->uptr) < count) return -1;
+			if((int)io->read(scanline, count, io->uptr) < count) return -1;
 			scanline += count;
 
 		} else {
