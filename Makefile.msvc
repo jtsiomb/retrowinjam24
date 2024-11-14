@@ -27,3 +27,4 @@ clean:
 libs\w32\imago.lib:
 	cd libs\imago
 	$(MAKE) /nologo -f Makefile.msvc
+	cd ..\..

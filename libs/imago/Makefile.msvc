@@ -30,7 +30,7 @@ obj = $(libobj) $(zlibobj) $(pngobj) $(jpegobj)
 alib = ..\w32\imago.lib
 
 opt = /O2
-warn = /W3 /wd4244 /wd4996
+warn = /W1
 inc = /I zlib /I libpng /I jpeglib
 
 CC = cl
