@@ -8,11 +8,11 @@ bin = game.exe
 dbg = /Zi
 warn = /W3
 inc = /I src /I src\win32 /I libs\imago\src
-libdir = /LIBPATH:libs\w32
 
 CC = cl
 CFLAGS = /nologo $(opt) $(dbg) $(warn) $(inc)
-LDFLAGS = /nologo /MD /link $(libdir) ddraw.lib user32.lib gdi32.lib winmm.lib imago.lib
+LDFLAGS = /nologo /MD /link ddraw.lib user32.lib gdi32.lib winmm.lib \
+		  libs\w32\imago.lib
 
 $(bin): $(obj) libs\w32\imago.lib
 	$(CC) /Fe$@ $(obj) $(LDFLAGS)
