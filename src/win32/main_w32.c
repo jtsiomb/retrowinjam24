@@ -18,6 +18,8 @@ static int quit;
 static int create_win(int width, int height, const char *title);
 static LRESULT CALLBACK handle_msg(HWND win, unsigned int msg, WPARAM wparam, LPARAM lparam);
 
+static int translate_vkey(int vkey);
+
 
 int WINAPI WinMain(HINSTANCE hinst, HINSTANCE hprev, char *cmdline, int showcmd)
 {
@@ -127,6 +129,8 @@ static int create_win(int width, int height, const char *title)
 
 static LRESULT CALLBACK handle_msg(HWND win, unsigned int msg, WPARAM wparam, LPARAM lparam)
 {
+	int key;
+
 	switch(msg) {
 	case WM_CLOSE:
 		DestroyWindow(win);
@@ -138,12 +142,86 @@ static LRESULT CALLBACK handle_msg(HWND win, unsigned int msg, WPARAM wparam, LP
 		return 0;
 
 	case WM_KEYDOWN:
-		quit = 1;
-		return 0;
+	case WM_SYSKEYDOWN:
+		key = translate_vkey(wparam);
+		game_keyboard(key, 1);
+		break;
+
+	case WM_KEYUP:
+	case WM_SYSKEYUP:
+		key = translate_vkey(wparam);
+		game_keyboard(key, 0);
+		break;
+
+	case WM_LBUTTONDOWN:
+		game_mousebtn(0, 1, lparam & 0xffff, lparam >> 16);
+		break;
+	case WM_MBUTTONDOWN:
+		game_mousebtn(1, 1, lparam & 0xffff, lparam >> 16);
+		break;
+	case WM_RBUTTONDOWN:
+		game_mousebtn(2, 1, lparam & 0xffff, lparam >> 16);
+		break;
+	case WM_LBUTTONUP:
+		game_mousebtn(0, 1, lparam & 0xffff, lparam >> 16);
+		break;
+	case WM_MBUTTONUP:
+		game_mousebtn(1, 1, lparam & 0xffff, lparam >> 16);
+		break;
+	case WM_RBUTTONUP:
+		game_mousebtn(2, 1, lparam & 0xffff, lparam >> 16);
+		break;
+
+	case WM_MOUSEMOVE:
+		game_mousemove(lparam & 0xffff, lparam >> 16);
+		break;
+
 
 	default:
 		break;
 	}
 
 	return DefWindowProc(win, msg, wparam, lparam);
+}
+
+
+#ifndef VK_OEM_1
+#define VK_OEM_1	0xba
+#define VK_OEM_2	0xbf
+#define VK_OEM_3	0xc0
+#define VK_OEM_4	0xdb
+#define VK_OEM_5	0xdc
+#define VK_OEM_6	0xdd
+#define VK_OEM_7	0xde
+#endif
+
+static int translate_vkey(int vkey)
+{
+	switch(vkey) {
+	case VK_PRIOR: return KEY_PGUP;
+	case VK_NEXT: return KEY_PGDN;
+	case VK_END: return KEY_END;
+	case VK_HOME: return KEY_HOME;
+	case VK_LEFT: return KEY_LEFT;
+	case VK_UP: return KEY_UP;
+	case VK_RIGHT: return KEY_RIGHT;
+	case VK_DOWN: return KEY_DOWN;
+	case VK_OEM_1: return ';';
+	case VK_OEM_2: return '/';
+	case VK_OEM_3: return '`';
+	case VK_OEM_4: return '[';
+	case VK_OEM_5: return '\\';
+	case VK_OEM_6: return ']';
+	case VK_OEM_7: return '\'';
+	default:
+		break;
+	}
+
+	if(vkey >= 'A' && vkey <= 'Z') {
+		vkey += 32;
+	} else if(vkey >= VK_F1 && vkey <= VK_F12) {
+		vkey -= VK_F1 + KEY_F1;
+	}
+
+	return vkey;
 }
