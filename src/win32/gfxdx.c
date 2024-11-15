@@ -26,6 +26,11 @@ static HRESULT WINAPI enum_modes(DDSURFACEDESC *sdesc, void *cls);
 static int calc_mask_shift(unsigned int mask);
 
 
+static void gfx_swfill(struct gfximage *img, unsigned int color, struct gfxrect *rect);
+static void gfx_swblit(struct gfximage *dest, int x, int y, struct gfximage *src, struct gfxrect *srect);
+static void gfx_swblitkey(struct gfximage *dest, int x, int y, struct gfximage *src, struct gfxrect *srect);
+
+
 int gfx_init(void)
 {
 	int i, modes_size;
@@ -278,14 +283,11 @@ int gfx_setup(int xsz, int ysz, int bpp, unsigned int flags)
 	 */
 	gfx_back->bpp = bpp;
 	if(fb_bpp != bpp) {
-		if(!(gfx_back->pixels = malloc(xsz * ysz * bpp / 8))) {
-			fprintf(stderr, "failed to allocate fake backbuffer\n");
-			MessageBox(win, "failed to allocate fake backbuffer", "fatal", MB_OK);
+		if(gfx_imginit(gfx_back, xsz, ysz, bpp) == -1) {
+			fprintf(stderr, "failed to create fake backbuffer surface\n");
+			MessageBox(win, "failed to create fake backbuffer surface", "fatal", MB_OK);
 			goto err;
 		}
-		gfx_back->pitch = xsz * bpp / 8;
-		gfx_back->flags = 0;	/* not in vidmem */
-		gfx_back->data = 0;		/* no corresponding direct draw surface */
 	}
 
 	if(fb_bpp <= 8 || bpp <= 8) {
@@ -437,51 +439,33 @@ void gfx_imgend(struct gfximage *img)
 	if(img->data) {
 		IDirectDrawSurface *surf = img->data;
 		IDirectDrawSurface_Unlock(surf, 0);
+		img->pixels = 0;
 	}
 }
 
 void gfx_fill(struct gfximage *img, unsigned int color, struct gfxrect *rect)
 {
-	if(img->data) {
-		RECT r, *rp = 0;
-		DDBLTFX fx = {0};
-		IDirectDrawSurface *surf = img->data;
+	RECT r, *rp = 0;
+	DDBLTFX fx = {0};
+	IDirectDrawSurface *surf = img->data;
 
-		if(rect) {
-			rp = &r;
-			r.left = rect->x;
-			r.top = rect->y;
-			r.right = rect->x + rect->width;
-			r.bottom = rect->y + rect->height;
-		}
-
-		fx.dwSize = sizeof fx;
-		fx.dwFillPixel = color;
-
-		ddblit(ddback, rp, 0, 0, DDBLT_COLORFILL | DDBLT_WAIT, &fx);
-
-	} else {
-		unsigned char *pptr;
-		int i, width, height;
-
-		assert(img->pixels);
-
-		/* TODO: support different pixel formats */
-		pptr = img->pixels;
-		if(rect) {
-			pptr += img->pitch * rect->y + rect->x;
-			width = rect->width;
-			height = rect->height;
-		} else {
-			width = img->width;
-			height = img->height;
-		}
-
-		for(i=0; i<height; i++) {
-			memset(pptr, color, width);
-			pptr += img->pitch;
-		}
+	if(!img->data) {
+		gfx_swfill(img, color, rect);
+		return;
 	}
+
+	if(rect) {
+		rp = &r;
+		r.left = rect->x;
+		r.top = rect->y;
+		r.right = rect->x + rect->width;
+		r.bottom = rect->y + rect->height;
+	}
+
+	fx.dwSize = sizeof fx;
+	fx.dwFillPixel = color;
+
+	ddblit(ddback, rp, 0, 0, DDBLT_COLORFILL | DDBLT_WAIT, &fx);
 }
 
 /* set which color to be used as a colorkey for transparent blits */
@@ -500,6 +484,11 @@ void gfx_imgkey(struct gfximage *img, int ckey)
 void gfx_blit(struct gfximage *dest, int x, int y, struct gfximage *src, struct gfxrect *srect)
 {
 	RECT dr, sr;
+
+	if(!dest->data) {
+		gfx_swblit(dest, x, y, src, srect);
+		return;
+	}
 
 	if(srect) {
 		sr.left = srect->x;
@@ -523,6 +512,11 @@ void gfx_blit(struct gfximage *dest, int x, int y, struct gfximage *src, struct 
 void gfx_blitkey(struct gfximage *dest, int x, int y, struct gfximage *src, struct gfxrect *srect)
 {
 	RECT sr;
+
+	if(!dest->data) {
+		gfx_swblitkey(dest, x, y, src, srect);
+		return;
+	}
 
 	if(srect) {
 		sr.left = srect->x;
@@ -560,8 +554,7 @@ void gfx_swapbuffers(int vsync)
 		long dpitch;
 		PALETTEENTRY *col;
 
-		assert(gfx_back->data == 0);	/* there should be no dd surf for gfx_back */
-		assert(gfx_back->pixels);		/* we should have allocated a pixel buffer */
+		if(!gfx_imgstart(gfx_back)) return;
 
 		sptr = gfx_back->pixels;
 		dpixels = ddlocksurf(ddback, &dpitch);
@@ -599,14 +592,189 @@ void gfx_swapbuffers(int vsync)
 			break;
 		}
 		IDirectDrawSurface_Unlock(ddback, 0);
+		gfx_imgend(gfx_back);
 	}
 
 	GetWindowRect(win, &rect);
 	ddblitfast(ddfront, rect.left + client_xoffs, rect.top + client_yoffs,
-			ddback, 0, DDBLT_WAIT);
+			ddback, 0, DDBLTFAST_WAIT);
 }
 
 void gfx_waitvsync(void)
 {
 	IDirectDraw2_WaitForVerticalBlank(ddraw, DDWAITVB_BLOCKBEGIN, 0);
+}
+
+
+/* TODO list for all the software fallback functions
+ *  - currently assume all source images and colors are 8bpp, make it generic
+ *  - RLE colorkey blits
+ *  - pre-pack dest-bpp packed colors for all palette entries
+ *  - faster clipping with pre-computing bounds instead of per-pixel checks
+ */
+
+static void gfx_swfill(struct gfximage *img, unsigned int color, struct gfxrect *rect)
+{
+	unsigned char *pptr;
+	uint32_t *pptr32;
+	int i, j, width, height;
+	PALETTEENTRY *col;
+
+	assert(img->pixels);
+
+	pptr = img->pixels;
+	if(rect) {
+		pptr += img->pitch * rect->y + rect->x;
+		width = rect->width;
+		height = rect->height;
+	} else {
+		width = img->width;
+		height = img->height;
+	}
+
+	switch(img->bpp) {
+	case 8:
+		for(i=0; i<height; i++) {
+			memset(pptr, color, width);
+			pptr += img->pitch;
+		}
+		break;
+
+	case 32:
+		pptr32 = (uint32_t*)pptr;
+		col = pal + color;
+		color = GFX_PACK32(col->peRed, col->peGreen, col->peBlue);
+		for(i=0; i<height; i++) {
+			for(j=0; j<width; j++) {
+				pptr32[j] = color;
+			}
+			pptr32 = (uint32_t*)((char*)pptr32 + img->pitch);
+		}
+		break;
+
+	default:
+		abort();	/* not implemented yet */
+	}
+}
+
+static void gfx_swblit(struct gfximage *dest, int x, int y, struct gfximage *src, struct gfxrect *srect)
+{
+	int i, j, width, height, locked = 0;
+	unsigned char *dptr, *sptr;
+	uint32_t *dptr32;
+	PALETTEENTRY *col;
+
+	assert(dest->pixels);
+
+	if(!src->pixels) {
+		if(!gfx_imgstart(src)) return;
+		locked = 1;
+	}
+
+	sptr = src->pixels;
+	if(srect) {
+		sptr += src->pitch * srect->y + srect->x;
+		width = srect->width;
+		height = srect->height;
+	} else {
+		width = src->width;
+		height = src->height;
+	}
+
+	dptr = (unsigned char*)dest->pixels + y * dest->pitch + x;
+
+	switch(dest->bpp) {
+	case 8:
+		for(i=0; i<height; i++) {
+			memcpy(dptr, sptr, width);
+			dptr += dest->pitch;
+			sptr += src->pitch;
+		}
+		break;
+
+	case 32:
+		dptr32 = (uint32_t*)dptr;
+		for(i=0; i<height; i++) {
+			for(j=0; j<width; j++) {
+				col = pal + sptr[j];
+				dptr32[j] = GFX_PACK32(col->peRed, col->peGreen, col->peBlue);
+			}
+			dptr32 = (uint32_t*)((char*)dptr32 + dest->pitch);
+			sptr += src->pitch;
+		}
+		break;
+	}
+
+	if(locked) {
+		gfx_imgend(src);
+	}
+}
+
+static void gfx_swblitkey(struct gfximage *dest, int x, int y, struct gfximage *src, struct gfxrect *srect)
+{
+	int i, j, width, height, locked = 0;
+	unsigned char *dptr, *sptr;
+	uint32_t *dptr32;
+	PALETTEENTRY *col;
+
+	assert(dest->pixels);
+
+	if(!src->pixels) {
+		if(!gfx_imgstart(src)) return;
+		locked = 1;
+	}
+
+	sptr = src->pixels;
+	if(srect) {
+		sptr += src->pitch * srect->y + srect->x;
+		width = srect->width;
+		height = srect->height;
+	} else {
+		width = src->width;
+		height = src->height;
+	}
+
+	dptr = (unsigned char*)dest->pixels + y * dest->pitch + x;
+
+	switch(dest->bpp) {
+	case 8:
+		for(i=0; i<height; i++) {
+			if(y >= dest->height) break;
+			if(y >= 0) {
+				for(j=0; j<width; j++) {
+					if(x + j < 0) continue;
+					if(x + j >= dest->width) break;
+					if(sptr[j] == src->ckey) continue;
+					dptr[j] = sptr[j];
+				}
+			}
+			dptr += dest->pitch;
+			sptr += src->pitch;
+			y++;
+		}
+		break;
+
+	case 32:
+		dptr32 = (uint32_t*)dptr;
+		for(i=0; i<height; i++) {
+			if(y >= dest->height) break;
+			if(y >= 0) {
+				for(j=0; j<width; j++) {
+					if(x + j < 0) continue;
+					if(x + j >= dest->width) break;
+					if(sptr[j] == src->ckey) continue;
+					col = pal + sptr[j];
+					dptr32[j] = GFX_PACK32(col->peRed, col->peGreen, col->peBlue);
+				}
+			}
+			dptr32 = (uint32_t*)((char*)dptr32 + dest->pitch);
+			sptr += src->pitch;
+			y++;
+		}
+		break;
+	}
+
+	if(locked) {
+		gfx_imgend(src);
+	}
 }
