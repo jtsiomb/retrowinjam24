@@ -24,6 +24,7 @@ static struct screen edscreen = {
 	edmotion
 };
 
+static int mouse_x, mouse_y;
 static int pan_x, pan_y;
 
 int init_leveled(void)
@@ -70,14 +71,14 @@ static void edstop(void)
 
 static int navkey_state[4];
 
-static void edupdate(void)
+static int edupdate(void)
 {
 	int speed;
 	unsigned int dt_msec;
 	static unsigned long prev_upd;
 
 	dt_msec = time_msec - prev_upd;
-	if(dt_msec < 33) return;
+	if(dt_msec < 33) return 0;
 	prev_upd = time_msec;
 
 	speed = (PAN_SPEED * dt_msec) >> 8;
@@ -102,28 +103,54 @@ static void edupdate(void)
 			pan_x = (lvl.width - 1) * TILE_XSZ;
 		}
 	}
+	return 1;
 }
 
 static void eddraw(void)
 {
-	int x, y, row, tileid;
+	int startx, x, y, start_cellx, cellx, celly, hoverx, hovery, tile;
 	struct levelcell *cell;
 
 	edupdate();
 
-	y = -pan_y;
-	row = y / TILE_HALF_YSZ;
-	cell = lvl.cell;
+	vscr_to_cell(mouse_x + pan_x, mouse_y + pan_y, &hoverx, &hovery);
+	printf("\rPAN(%d,%d) M(%d,%d) %d,%d -> cell %d,%d           ", pan_x, pan_y,
+			mouse_x, mouse_y, mouse_x + pan_x, mouse_y + pan_y, hoverx, hovery);
+	fflush(stdout);
 
-	while(y < YRES) {
-		x = -pan_x + (row & 1 ? TILE_XSZ / 2 : 0);	/* stagger rows */
-		while(x < XRES) {
-			tileid = cell->ftile < 0 ? 0 : cell->ftile;
-			blit_tile(gfx_back, x, y, lvl.tset, tileid);
+	vscr_to_cell(pan_x, pan_y, &start_cellx, &celly);
+
+	if(celly & 1) {
+		startx = -(pan_x % TILE_XSZ);
+	} else {
+		startx = -(pan_x % TILE_XSZ) - TILE_XSZ / 2;
+	}
+	startx = 0;
+	y = 0;//-(pan_y % TILE_YSZ);// - TILE_YSZ / 2;
+
+	/* x,y are tile centers, offset of blit coordinates */
+	startx -= TILE_XSZ / 2;
+	y -= TILE_YSZ / 2;
+
+	while(y + TILE_YSZ < YRES) {
+		x = startx;
+		cellx = start_cellx;
+		if(celly & 1) x += TILE_XSZ / 2;	/* stagger odd rows */
+		while(x + TILE_XSZ < XRES) {
+			if((cell = get_levelcell(&lvl, cellx, celly))) {
+				tile = cell->ftile > 0 ? cell->ftile : 0;
+				blit_tile(gfx_back, x, y, lvl.tset, tile);
+			}
+			if(cellx == hoverx && celly == hovery) {
+				blit_tile(gfx_back, x, y, lvl.tset, 1);
+			}
+
 			x += TILE_XSZ;
+			cellx++;
 		}
+
 		y += TILE_YSZ / 2;
-		row++;
+		celly++;
 	}
 }
 
@@ -136,8 +163,12 @@ static void edkeyb(int key, int press)
 
 static void edbutton(int bn, int st, int x, int y)
 {
+	mouse_x = x;
+	mouse_y = y;
 }
 
 static void edmotion(int x, int y)
 {
+	mouse_x = x;
+	mouse_y = y;
 }

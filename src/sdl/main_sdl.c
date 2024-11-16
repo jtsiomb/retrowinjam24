@@ -73,6 +73,16 @@ static void handle_event(SDL_Event *ev)
 		}
 		break;
 
+	case SDL_MOUSEMOTION:
+		game_mousemove(ev->motion.x, ev->motion.y);
+		break;
+
+	case SDL_MOUSEBUTTONDOWN:
+	case SDL_MOUSEBUTTONUP:
+		game_mousebtn(ev->button.button - SDL_BUTTON_LEFT, ev->button.state,
+				ev->button.x, ev->button.y);
+		break;
+
 	default:
 		break;
 	}

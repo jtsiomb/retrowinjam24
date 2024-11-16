@@ -21,3 +21,5 @@ core
 *.pdb
 *.user
 .vs/
+*.tar
+*.png
