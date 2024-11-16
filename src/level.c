@@ -4,22 +4,20 @@
 #include "level.h"
 #include "game.h"
 
-int create_level(struct level *lvl, int xsz, int ysz)
+int create_level(struct level *lvl, int sz)
 {
 	int ncells;
 
-	lvl->width = xsz;
-	lvl->height = ysz;
-	ncells = xsz * ysz;
-
-	lvl->xshift = 0;
-	while(xsz) {
-		lvl->xshift++;
-		xsz >>= 1;
+	lvl->size = sz;
+	lvl->shift = 0;
+	while(sz > 1) {
+		lvl->shift++;
+		sz >>= 1;
 	}
+	ncells = lvl->size << lvl->shift;
 
 	if(!(lvl->cell = malloc(ncells * sizeof *lvl->cell))) {
-		fprintf(stderr, "failed to allocate level cells (%dx%d)\n", xsz, ysz);
+		fprintf(stderr, "failed to allocate level cells (%dx%d)\n", lvl->size, lvl->size);
 		return -1;
 	}
 
@@ -40,10 +38,10 @@ void destroy_level(struct level *lvl)
 
 struct levelcell *get_levelcell(struct level *lvl, int cx, int cy)
 {
-	if(cx < 0 || cx >= lvl->width) return 0;
-	if(cy < 0 || cy >= lvl->height) return 0;
+	if(cx < 0 || cx >= lvl->size) return 0;
+	if(cy < 0 || cy >= lvl->size) return 0;
 
-	return lvl->cell + (cy << lvl->xshift) + cy;
+	return lvl->cell + (cy << lvl->shift) + cy;
 }
 
 struct levelcell *get_levelcell_vscr(struct level *lvl, int sx, int sy)
@@ -63,40 +61,25 @@ int save_level(struct level *lvl, const char *fname)
 	return -1;
 }
 
+/* implicit in these conversions is the tile size: 128x64 */
+void vscr_to_grid(int sx, int sy, int32_t *gridx, int32_t *gridy)
+{
+	sx <<= 2;
+	sy <<= 3;
+	*gridx = (sy + sx) >> 1;
+	*gridy = (sy - sx) >> 1;
+}
+
+void grid_to_vscr(int32_t gridx, int32_t gridy, int *sx, int *sy)
+{
+	*sx = (gridx - gridy) >> 2;
+	*sy = (gridx + gridy) >> 3;
+}
 
 void vscr_to_cell(int sx, int sy, int *cx, int *cy)
 {
-	int ev_cx, ev_cy, odd_cx, odd_cy, x, y, dx, dy, even_dsq, odd_dsq;
-
-	/* calculate even grid coordinates, and squared distance from sx,sy */
-	ev_cx = (sx + TILE_XSZ / 2) / TILE_XSZ;
-	ev_cy = (sy + TILE_YSZ / 2) / TILE_YSZ;
-	cell_to_vscr(ev_cx, ev_cy, &x, &y);
-	dx = sx - x;
-	dy = sy - y;
-	even_dsq = dx * dx + dy * dy;
-
-	/* calculate odd grid coordinates, and squared distance from sx,sy */
-	odd_cx = sx / TILE_XSZ;
-	odd_cy = sy / TILE_YSZ;
-	cell_to_vscr(odd_cx, odd_cy, &x, &y);
-	dx = sx - x;
-	dy = sy - y;
-	odd_dsq = dx * dx + dy * dy;
-
-	if(even_dsq < odd_dsq) {
-		*cx = ev_cx;
-		*cy = ev_cy;
-	} else {
-		*cx = odd_cx;
-		*cy = odd_cy;
-	}
-}
-
-void cell_to_vscr(int cx, int cy, int *sx, int *sy)
-{
-	int x = cx * TILE_XSZ;
-	if(cy & 1) x += TILE_XSZ / 2;
-	*sx = x;
-	*sy = cy * (TILE_YSZ / 2);
+	int32_t gx, gy;
+	vscr_to_grid(sx, sy, &gx, &gy);
+	*cx = gx >> 8;
+	*cy = gy >> 8;
 }

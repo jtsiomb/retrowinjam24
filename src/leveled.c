@@ -25,7 +25,7 @@ static struct screen edscreen = {
 };
 
 static int mouse_x, mouse_y;
-static int pan_x, pan_y;
+static int pan_x, pan_y, pan_min_x, pan_max_x, pan_max_y;
 
 int init_leveled(void)
 {
@@ -39,7 +39,7 @@ static int edstart(void)
 	struct gfxcolor pal[256];
 
 	if(!lvl.cell) {
-		if(create_level(&lvl, 16, 32) == -1) {
+		if(create_level(&lvl, 16) == -1) {
 			return -1;
 		}
 		if(!(tset = alloc_tileset())) {
@@ -54,6 +54,11 @@ static int edstart(void)
 	} else {
 		tset = lvl.tset;
 	}
+
+	pan_x = pan_y = 0;
+	pan_max_x = lvl.size * TILE_XSZ / 2 - XRES;
+	pan_min_x = -(lvl.size * TILE_XSZ / 2);
+	pan_max_y = lvl.size * TILE_YSZ - YRES;
 
 	for(i=0; i<tset->img->ncolors; i++) {
 		pal[i].r = tset->img->cmap[i].r;
@@ -89,68 +94,48 @@ static int edupdate(void)
 	}
 	if(navkey_state[1]) {	/* down */
 		pan_y += speed;
-		if(pan_y >= (lvl.height - 1) * TILE_YSZ) {
-			pan_y = (lvl.height - 1) * TILE_YSZ;
-		}
+		if(pan_y >= pan_max_y) pan_y = pan_max_y - 1;
 	}
 	if(navkey_state[2]) {	/* left */
 		pan_x -= speed;
-		if(pan_x < 0) pan_x = 0;
+		if(pan_x < pan_min_x) pan_x = pan_min_x;
 	}
 	if(navkey_state[3]) {	/* right */
 		pan_x += speed;
-		if(pan_x >= (lvl.width - 1) * TILE_XSZ) {
-			pan_x = (lvl.width - 1) * TILE_XSZ;
-		}
+		if(pan_x >= pan_max_x) pan_x = pan_max_x - 1;
 	}
 	return 1;
 }
 
 static void eddraw(void)
 {
-	int startx, x, y, start_cellx, cellx, celly, hoverx, hovery, tile;
+	int i, j, x, y, x0, y0, x1, y1, tile, hoverx, hovery;
 	struct levelcell *cell;
 
 	edupdate();
 
 	vscr_to_cell(mouse_x + pan_x, mouse_y + pan_y, &hoverx, &hovery);
-	printf("\rPAN(%d,%d) M(%d,%d) %d,%d -> cell %d,%d           ", pan_x, pan_y,
-			mouse_x, mouse_y, mouse_x + pan_x, mouse_y + pan_y, hoverx, hovery);
-	fflush(stdout);
 
-	vscr_to_cell(pan_x, pan_y, &start_cellx, &celly);
+	for(i=0; i<lvl.size; i++) {
+		for(j=0; j<lvl.size; j++) {
+			cell_to_vscr(j, i, &x, &y);
+			x -= pan_x;
+			y -= pan_y;
+			x0 = x - TILE_XSZ / 2;
+			x1 = x + TILE_XSZ / 2;
+			y0 = y;
+			y1 = y + TILE_YSZ;
 
-	if(celly & 1) {
-		startx = -(pan_x % TILE_XSZ);
-	} else {
-		startx = -(pan_x % TILE_XSZ) - TILE_XSZ / 2;
-	}
-	startx = 0;
-	y = 0;//-(pan_y % TILE_YSZ);// - TILE_YSZ / 2;
+			if(x0 >= XRES || x1 < 0 || y0 >= YRES || y1 < 0) continue;
 
-	/* x,y are tile centers, offset of blit coordinates */
-	startx -= TILE_XSZ / 2;
-	y -= TILE_YSZ / 2;
+			cell = get_levelcell(&lvl, j, i);
+			tile = cell->ftile > 0 ? cell->ftile : 0;
+			blit_tile(gfx_back, x0, y0, lvl.tset, tile);
 
-	while(y + TILE_YSZ < YRES) {
-		x = startx;
-		cellx = start_cellx;
-		if(celly & 1) x += TILE_XSZ / 2;	/* stagger odd rows */
-		while(x + TILE_XSZ < XRES) {
-			if((cell = get_levelcell(&lvl, cellx, celly))) {
-				tile = cell->ftile > 0 ? cell->ftile : 0;
-				blit_tile(gfx_back, x, y, lvl.tset, tile);
+			if(j == hoverx && i == hovery) {
+				blit_tile(gfx_back, x0, y0, lvl.tset, 1);
 			}
-			if(cellx == hoverx && celly == hovery) {
-				blit_tile(gfx_back, x, y, lvl.tset, 1);
-			}
-
-			x += TILE_XSZ;
-			cellx++;
 		}
-
-		y += TILE_YSZ / 2;
-		celly++;
 	}
 }
 
