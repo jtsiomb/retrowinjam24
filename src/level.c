@@ -3,6 +3,9 @@
 #include <string.h>
 #include "level.h"
 #include "game.h"
+#include "treestor.h"
+
+static int read_map(struct level *lvl, struct ts_node *tsn);
 
 int create_level(struct level *lvl, int sz)
 {
@@ -41,7 +44,7 @@ struct levelcell *get_levelcell(struct level *lvl, int cx, int cy)
 	if(cx < 0 || cx >= lvl->size) return 0;
 	if(cy < 0 || cy >= lvl->size) return 0;
 
-	return lvl->cell + (cy << lvl->shift) + cy;
+	return lvl->cell + (cy << lvl->shift) + cx;
 }
 
 struct levelcell *get_levelcell_vscr(struct level *lvl, int sx, int sy)
@@ -53,7 +56,123 @@ struct levelcell *get_levelcell_vscr(struct level *lvl, int sx, int sy)
 
 int load_level(struct level *lvl, const char *fname)
 {
+	int size;
+	const char *tsetfile;
+	struct ts_node *ts, *tsn;
+	struct tileset *tset = 0;
+
+	if(!(ts = ts_load(fname))) {
+		fprintf(stderr, "failed to load: %s\n", fname);
+		return -1;
+	}
+	if(strcmp(ts->name, "level") != 0) {
+		fprintf(stderr, "invalid level file: %s\n", fname);
+		goto err;
+	}
+
+	if(!(size = ts_get_attr_int(ts, "size", 0))) {
+		fprintf(stderr, "load_level(%s): missing size attribute\n", fname);
+		goto err;
+	}
+	if(!(tsetfile = ts_get_attr_str(ts, "tileset", 0))) {
+		fprintf(stderr, "load_level(%s): missing tileset attribute\n", fname);
+		goto err;
+	}
+	if(!(tset = alloc_tileset())) {
+		fprintf(stderr, "failed to allocate tileset\n");
+		goto err;
+	}
+	if(load_tileset(tset, tsetfile) == -1) {
+		goto err;
+	}
+	if(create_level(lvl, size) == -1) {
+		goto err;
+	}
+	lvl->tset = tset;
+
+	if(!(tsn = ts_get_child(ts, "floor"))) {
+		fprintf(stderr, "load_level(%s): missing floor data\n", fname);
+		goto err;
+	}
+	if(read_map(lvl, tsn) == -1) {
+		goto err;
+	}
+
+	ts_free_tree(ts);
+	return 0;
+
+err:
+	ts_free_tree(ts);
+	free_tileset(tset);
 	return -1;
+}
+
+static const char *symmap[256];
+static int numsym;
+
+static int find_symtile(struct tileset *tset, int c)
+{
+	int i;
+	for(i=0; i<numsym; i++) {
+		if(symmap[i][0] == c) {
+			return find_tile_id(tset, symmap[i] + 1);
+		}
+	}
+	return -1;
+}
+
+static int read_map(struct level *lvl, struct ts_node *tsn)
+{
+	int i, j, tid, inval_tid, rowcount;
+	struct ts_attr *tsattr;
+	const char *str;
+	struct levelcell *cell;
+
+	if((inval_tid = find_tile_id(lvl->tset, "invalid")) == -1) {
+		inval_tid = 0;
+	}
+
+	cell = lvl->cell;
+	rowcount = 0;
+	numsym = 0;
+	tsattr = tsn->attr_list;
+	while(tsattr) {
+		if(strcmp(tsattr->name, "sym") == 0) {
+			if(numsym >= sizeof symmap / sizeof *symmap) {
+				fprintf(stderr, "load_level: warning: ignoring excessive symbol mappings\n");
+			} else {
+				symmap[numsym++] = tsattr->val.str;
+			}
+
+		} else if(strcmp(tsattr->name, "row") == 0) {
+
+			str = tsattr->val.str;
+			for(i=0; i<lvl->size; i++) {
+				if(!*str) {
+					tid = inval_tid;
+				} else {
+					if((tid = find_symtile(lvl->tset, *str)) == -1) {
+						tid = inval_tid;
+					}
+					str++;
+				}
+				cell->ftile = tid;
+				cell++;
+			}
+			rowcount++;
+		}
+		tsattr = tsattr->next;
+	}
+
+	if(rowcount < lvl->size) {
+		for(i=rowcount; i<lvl->size; i++) {
+			for(j=0; j<lvl->size; j++) {
+				cell->ftile = inval_tid;
+				cell++;
+			}
+		}
+	}
+	return 0;
 }
 
 int save_level(struct level *lvl, const char *fname)

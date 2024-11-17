@@ -90,9 +90,22 @@ err:
 
 void destroy_tileset(struct tileset *tset)
 {
-	gfx_imgdestroy(tset->img);
+	if(tset->img) {
+		gfx_imgdestroy(tset->img);
+	}
 	free(tset->tiles);
 	free(tset->name);
+}
+
+int find_tile_id(struct tileset *tset, const char *name)
+{
+	int i;
+	for(i=0; i<tset->num_tiles; i++) {
+		if(strcmp(tset->tiles[i].name, name) == 0) {
+			return i;
+		}
+	}
+	return -1;
 }
 
 void blit_tile(struct gfximage *dest, int x, int y, struct tileset *tset, int idx)

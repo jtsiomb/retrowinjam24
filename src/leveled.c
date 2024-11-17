@@ -5,7 +5,7 @@
 
 #define TILE_HALF_YSZ	(TILE_YSZ >> 1)
 
-#define PAN_SPEED	32
+#define PAN_SPEED	64
 
 static int edstart(void);
 static void edstop(void);
@@ -13,6 +13,9 @@ static void eddraw(void);
 static void edkeyb(int key, int press);
 static void edbutton(int bn, int st, int x, int y);
 static void edmotion(int x, int y);
+
+static void reset_view(void);
+static void pan_view(int dx, int dy);
 
 static struct screen edscreen = {
 	"leveled",
@@ -55,10 +58,7 @@ static int edstart(void)
 		tset = lvl.tset;
 	}
 
-	pan_x = pan_y = 0;
-	pan_max_x = lvl.size * TILE_XSZ / 2 - XRES;
-	pan_min_x = -(lvl.size * TILE_XSZ / 2);
-	pan_max_y = lvl.size * TILE_YSZ - YRES;
+	reset_view();
 
 	for(i=0; i<tset->img->ncolors; i++) {
 		pal[i].r = tset->img->cmap[i].r;
@@ -78,7 +78,7 @@ static int navkey_state[4];
 
 static int edupdate(void)
 {
-	int speed;
+	int speed, dx, dy;
 	unsigned int dt_msec;
 	static unsigned long prev_upd;
 
@@ -88,21 +88,21 @@ static int edupdate(void)
 
 	speed = (PAN_SPEED * dt_msec) >> 8;
 
+	dx = dy = 0;
 	if(navkey_state[0]) {	/* up */
-		pan_y -= speed;
-		if(pan_y < 0) pan_y = 0;
+		dy -= speed;
 	}
 	if(navkey_state[1]) {	/* down */
-		pan_y += speed;
-		if(pan_y >= pan_max_y) pan_y = pan_max_y - 1;
+		dy += speed;
 	}
 	if(navkey_state[2]) {	/* left */
-		pan_x -= speed;
-		if(pan_x < pan_min_x) pan_x = pan_min_x;
+		dx -= speed;
 	}
 	if(navkey_state[3]) {	/* right */
-		pan_x += speed;
-		if(pan_x >= pan_max_x) pan_x = pan_max_x - 1;
+		dx += speed;
+	}
+	if(dx | dy) {
+		pan_view(dx, dy);
 	}
 	return 1;
 }
@@ -141,19 +141,80 @@ static void eddraw(void)
 
 static void edkeyb(int key, int press)
 {
+	struct level newlvl;
+
 	if(key >= KEY_UP && key <= KEY_RIGHT) {
 		navkey_state[key - KEY_UP] = press;
 	}
+
+	switch(key) {
+	case 'l':
+		if(press) {
+			if(load_level(&newlvl, "data/test.lvl") != -1) {
+				destroy_level(&lvl);
+				lvl = newlvl;
+				reset_view();
+			}
+		}
+		break;
+
+	case 'a':
+		navkey_state[2] = press;
+		break;
+	case 's':
+		navkey_state[1] = press;
+		break;
+	case 'd':
+		navkey_state[3] = press;
+		break;
+	case 'w':
+		navkey_state[0] = press;
+		break;
+	default:
+		break;
+	}
 }
+
+static int bnstate[3];
 
 static void edbutton(int bn, int st, int x, int y)
 {
 	mouse_x = x;
 	mouse_y = y;
+
+	if(bn < 3) {
+		bnstate[bn] = st;
+	}
 }
 
 static void edmotion(int x, int y)
 {
+	int dx, dy;
+	dx = x - mouse_x;
+	dy = y - mouse_y;
 	mouse_x = x;
 	mouse_y = y;
+
+	if(bnstate[1]) {
+		pan_view(-dx, -dy);
+	}
+}
+
+static void reset_view(void)
+{
+	pan_x = pan_y = 0;
+	pan_max_x = lvl.size * TILE_XSZ / 2 - XRES;
+	pan_min_x = -(lvl.size * TILE_XSZ / 2);
+	pan_max_y = lvl.size * TILE_YSZ - YRES;
+}
+
+static void pan_view(int dx, int dy)
+{
+	pan_x += dx;
+	pan_y += dy;
+
+	if(pan_y < 0) pan_y = 0;
+	if(pan_y >= pan_max_y) pan_y = pan_max_y - 1;
+	if(pan_x < pan_min_x) pan_x = pan_min_x;
+	if(pan_x >= pan_max_x) pan_x = pan_max_x - 1;
 }

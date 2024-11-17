@@ -24,6 +24,8 @@ void free_tileset(struct tileset *tset);
 int load_tileset(struct tileset *tset, const char *fname);
 void destroy_tileset(struct tileset *tset);
 
+int find_tile_id(struct tileset *tset, const char *name);
+
 void blit_tile(struct gfximage *dest, int x, int y, struct tileset *tset, int idx);
 
 #endif	/* TILES_H_ */
