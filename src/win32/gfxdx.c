@@ -320,9 +320,34 @@ int gfx_setup(int xsz, int ysz, int bpp, unsigned int flags)
 
 	/* figure out initial client area */
 	if(fullscreen) {
+		RGNDATA *rgn;
+		RECT *rect;
+
 		client_xoffs = client_yoffs = 0;
 
 		ShowCursor(0);
+
+		if(!(rgn = malloc(sizeof(RGNDATAHEADER) + sizeof(RECT)))) {
+			MessageBox(win, "failed to allocate clipping region", "error", MB_OK);
+			goto err;
+		}
+		rect = (RECT*)rgn->Buffer;
+		rect->left = rect->top = 0;
+		rect->right = xsz;
+		rect->bottom = ysz;
+
+		rgn->rdh.dwSize = sizeof(RGNDATAHEADER) + sizeof(RECT);
+		rgn->rdh.iType = RDH_RECTANGLES;
+		rgn->rdh.nCount = 1;
+		rgn->rdh.nRgnSize = sizeof(RECT);
+		rgn->rdh.rcBound = *rect;
+
+		if((res = IDirectDraw2_CreateClipper(ddraw, 0, &clipper, 0)) != 0) {
+			MessageBox(win, dderrstr(res), "failed to create clipper", MB_OK);
+			goto err;
+		}
+		IDirectDrawClipper_SetClipList(clipper, rgn, 0);
+		IDirectDrawSurface_SetClipper(ddback, clipper);
 	} else {
 		/* for windowed we need to compute the client area offset */
 		int ws = GetWindowLong(win, GWL_STYLE);
@@ -336,12 +361,12 @@ int gfx_setup(int xsz, int ysz, int bpp, unsigned int flags)
 
 		ShowCursor(1);
 
-		/*if((res = IDirectDraw2_CreateClipper(ddraw, 0, &clipper, 0)) != 0) {
+		if((res = IDirectDraw2_CreateClipper(ddraw, 0, &clipper, 0)) != 0) {
 			MessageBox(win, dderrstr(res), "failed to create clipper", MB_OK);
 			goto err;
 		}
 		IDirectDrawClipper_SetHWnd(clipper, 0, win);
-		IDirectDrawSurface_SetClipper(ddfront, clipper);*/
+		IDirectDrawSurface_SetClipper(ddback, clipper);
 	}
 
 	return 0;
@@ -511,7 +536,7 @@ void gfx_blit(struct gfximage *dest, int x, int y, struct gfximage *src, struct 
 
 void gfx_blitkey(struct gfximage *dest, int x, int y, struct gfximage *src, struct gfxrect *srect)
 {
-	RECT sr;
+	RECT sr, dr;
 
 	if(!dest->data) {
 		gfx_swblitkey(dest, x, y, src, srect);
@@ -529,7 +554,12 @@ void gfx_blitkey(struct gfximage *dest, int x, int y, struct gfximage *src, stru
 		sr.bottom = src->height;
 	}
 
-	ddblitfast(dest->data, x, y, src->data, &sr, DDBLTFAST_WAIT | DDBLTFAST_SRCCOLORKEY);
+	dr.left = x;
+	dr.top = y;
+	dr.right = x + sr.right - sr.left;
+	dr.bottom = y + sr.bottom - sr.top;
+
+	ddblit(dest->data, &dr, src->data, &sr, DDBLT_WAIT | DDBLT_KEYSRC, 0);
 }
 
 void gfx_swapbuffers(int vsync)

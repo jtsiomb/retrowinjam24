@@ -163,13 +163,13 @@ static LRESULT CALLBACK handle_msg(HWND win, unsigned int msg, WPARAM wparam, LP
 		game_mousebtn(2, 1, lparam & 0xffff, lparam >> 16);
 		break;
 	case WM_LBUTTONUP:
-		game_mousebtn(0, 1, lparam & 0xffff, lparam >> 16);
+		game_mousebtn(0, 0, lparam & 0xffff, lparam >> 16);
 		break;
 	case WM_MBUTTONUP:
-		game_mousebtn(1, 1, lparam & 0xffff, lparam >> 16);
+		game_mousebtn(1, 0, lparam & 0xffff, lparam >> 16);
 		break;
 	case WM_RBUTTONUP:
-		game_mousebtn(2, 1, lparam & 0xffff, lparam >> 16);
+		game_mousebtn(2, 0, lparam & 0xffff, lparam >> 16);
 		break;
 
 	case WM_MOUSEMOVE:
