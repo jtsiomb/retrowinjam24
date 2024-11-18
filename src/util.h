@@ -7,4 +7,6 @@
 #include <alloca.h>
 #endif
 
+unsigned int calc_shift(unsigned int x);
+
 #endif	/* UTIL_H_ */

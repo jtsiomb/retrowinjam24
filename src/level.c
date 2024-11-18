@@ -4,6 +4,7 @@
 #include "level.h"
 #include "game.h"
 #include "treestor.h"
+#include "util.h"
 
 static int read_map(struct level *lvl, struct ts_node *tsn);
 static int proc_map(struct level *lvl);
@@ -13,12 +14,8 @@ int create_level(struct level *lvl, int sz)
 	int ncells;
 
 	lvl->size = sz;
-	lvl->shift = 0;
-	while(sz > 1) {
-		lvl->shift++;
-		sz >>= 1;
-	}
-	ncells = lvl->size << lvl->shift;
+	lvl->shift = calc_shift(sz);
+	ncells = sz << lvl->shift;
 
 	if(!(lvl->cell = malloc(ncells * sizeof *lvl->cell))) {
 		fprintf(stderr, "failed to allocate level cells (%dx%d)\n", lvl->size, lvl->size);

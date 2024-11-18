@@ -137,7 +137,7 @@ static void eddraw(void)
 			}
 
 			tid = cell->ftile > 0 ? cell->ftile : 0;
-			y = lvl.tset->tiles[tid].type == TILE_SOLID ? y1 - 92 : y1;
+			y = lvl.tset->tiles[tid].type == TILE_SOLID ? y1 - 96 : y1;
 			blit_tile(gfx_back, x0, y, lvl.tset, tid);
 
 			if(j == hoverx && i == hovery) {
