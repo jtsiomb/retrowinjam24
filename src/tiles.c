@@ -3,6 +3,10 @@
 #include <string.h>
 #include "tiles.h"
 #include "treestor.h"
+#include "util.h"
+
+static enum tiletype parse_type(const char *str);
+
 
 struct tileset *alloc_tileset(void)
 {
@@ -65,6 +69,7 @@ int load_tileset(struct tileset *tset, const char *fname)
 	while(tsnode) {
 		if(strcmp(tsnode->name, "tile") == 0) {
 			tile->name = strdup(ts_get_attr_str(tsnode, "name", "unknown"));
+			tile->type = parse_type(ts_get_attr_str(tsnode, "type", 0));
 			if((vec = ts_get_attr_vec(tsnode, "offs", 0))) {
 				tile->xoffs = (int)vec[0];
 				tile->yoffs = (int)vec[1];
@@ -108,6 +113,21 @@ int find_tile_id(struct tileset *tset, const char *name)
 	return -1;
 }
 
+int pick_tile(struct tileset *tset, enum tiletype type)
+{
+	int i, num = 0;
+	int *pool = alloca(tset->num_tiles * sizeof *pool);
+
+	for(i=0; i<tset->num_tiles; i++) {
+		if(tset->tiles[i].type == type) {
+			pool[num++] = i;
+		}
+	}
+
+	if(!num) return -1;
+	return pool[rand() % num];
+}
+
 void blit_tile(struct gfximage *dest, int x, int y, struct tileset *tset, int idx)
 {
 	struct gfxrect rect;
@@ -118,5 +138,29 @@ void blit_tile(struct gfximage *dest, int x, int y, struct tileset *tset, int id
 	rect.width = tile->xsz;
 	rect.height = tile->ysz;
 
-	gfx_blitkey(dest, x, y, tset->img, &rect);
+	gfx_blitkey(dest, x, y - tile->ysz, tset->img, &rect);
+}
+
+
+/* XXX these must correspond to enum tiletype in tiles.h */
+static const char *typestr[] = {
+	"unknown", "solid", "floor",
+	"lwall", "rwall",
+	"lcdoor", "rcdoor",
+	"lodoor", "rodoor",
+	0
+};
+
+static enum tiletype parse_type(const char *str)
+{
+	int i;
+
+	if(!str) return TILE_UNKNOWN;
+
+	for(i=0; typestr[i]; i++) {
+		if(strcmp(str, typestr[i]) == 0) {
+			return i;
+		}
+	}
+	return TILE_UNKNOWN;
 }

@@ -6,6 +6,7 @@
 #include "treestor.h"
 
 static int read_map(struct level *lvl, struct ts_node *tsn);
+static int proc_map(struct level *lvl);
 
 int create_level(struct level *lvl, int sz)
 {
@@ -90,7 +91,7 @@ int load_level(struct level *lvl, const char *fname)
 	}
 	lvl->tset = tset;
 
-	if(!(tsn = ts_get_child(ts, "floor"))) {
+	if(!(tsn = ts_get_child(ts, "map"))) {
 		fprintf(stderr, "load_level(%s): missing floor data\n", fname);
 		goto err;
 	}
@@ -105,74 +106,6 @@ err:
 	ts_free_tree(ts);
 	free_tileset(tset);
 	return -1;
-}
-
-static const char *symmap[256];
-static int numsym;
-
-static int find_symtile(struct tileset *tset, int c)
-{
-	int i;
-	for(i=0; i<numsym; i++) {
-		if(symmap[i][0] == c) {
-			return find_tile_id(tset, symmap[i] + 1);
-		}
-	}
-	return -1;
-}
-
-static int read_map(struct level *lvl, struct ts_node *tsn)
-{
-	int i, j, tid, inval_tid, rowcount;
-	struct ts_attr *tsattr;
-	const char *str;
-	struct levelcell *cell;
-
-	if((inval_tid = find_tile_id(lvl->tset, "invalid")) == -1) {
-		inval_tid = 0;
-	}
-
-	cell = lvl->cell;
-	rowcount = 0;
-	numsym = 0;
-	tsattr = tsn->attr_list;
-	while(tsattr) {
-		if(strcmp(tsattr->name, "sym") == 0) {
-			if(numsym >= sizeof symmap / sizeof *symmap) {
-				fprintf(stderr, "load_level: warning: ignoring excessive symbol mappings\n");
-			} else {
-				symmap[numsym++] = tsattr->val.str;
-			}
-
-		} else if(strcmp(tsattr->name, "row") == 0) {
-
-			str = tsattr->val.str;
-			for(i=0; i<lvl->size; i++) {
-				if(!*str) {
-					tid = inval_tid;
-				} else {
-					if((tid = find_symtile(lvl->tset, *str)) == -1) {
-						tid = inval_tid;
-					}
-					str++;
-				}
-				cell->ftile = tid;
-				cell++;
-			}
-			rowcount++;
-		}
-		tsattr = tsattr->next;
-	}
-
-	if(rowcount < lvl->size) {
-		for(i=rowcount; i<lvl->size; i++) {
-			for(j=0; j<lvl->size; j++) {
-				cell->ftile = inval_tid;
-				cell++;
-			}
-		}
-	}
-	return 0;
 }
 
 int save_level(struct level *lvl, const char *fname)
@@ -201,4 +134,125 @@ void vscr_to_cell(int sx, int sy, int *cx, int *cy)
 	vscr_to_grid(sx, sy, &gx, &gy);
 	*cx = gx >> 8;
 	*cy = gy >> 8;
+}
+
+
+/* special temporary tile types */
+#define TILE_DOORWAY	128
+
+static int read_map(struct level *lvl, struct ts_node *tsn)
+{
+	int i, j, tid, inval_tid, rowcount;
+	struct ts_attr *tsattr;
+	const char *str;
+	struct levelcell *cell;
+
+	if((inval_tid = find_tile_id(lvl->tset, "invalid")) == -1) {
+		inval_tid = 0;
+	}
+
+	cell = lvl->cell;
+	rowcount = 0;
+	tsattr = tsn->attr_list;
+	while(tsattr) {
+		if(strcmp(tsattr->name, "row") == 0) {
+			str = tsattr->val.str;
+			for(i=0; i<lvl->size; i++) {
+				if(!*str) {
+					tid = TILE_UNKNOWN;
+				} else {
+					switch(*str++) {
+					case '#':
+						tid = TILE_SOLID;
+						break;
+					case 'p':
+						lvl->spawnx = i;
+						lvl->spawny = rowcount;
+					case ' ':
+						tid = TILE_FLOOR;
+						cell->flags |= CELL_WALK;
+						break;
+					case 'd':
+						tid = TILE_DOORWAY;
+						break;
+					}
+				}
+				cell->ftile = tid;
+				cell++;
+			}
+			rowcount++;
+		}
+		tsattr = tsattr->next;
+	}
+
+	if(rowcount < lvl->size) {
+		for(i=rowcount; i<lvl->size; i++) {
+			for(j=0; j<lvl->size; j++) {
+				cell->ftile = inval_tid;
+				cell++;
+			}
+		}
+	}
+
+	proc_map(lvl);
+	return 0;
+}
+
+
+static int proc_map(struct level *lvl)
+{
+	int i, j;
+	struct levelcell *cell;
+
+	/* first pass: assign wall tiles */
+	cell = lvl->cell;
+	for(i=0; i<lvl->size; i++) {
+		for(j=0; j<lvl->size; j++) {
+			switch(cell->ftile) {
+			case TILE_FLOOR:
+				if(j == 0 || cell[-1].ftile == TILE_SOLID) {
+					cell->wtile[0] = pick_tile(lvl->tset, TILE_LWALL);
+				}
+				if(i == 0 || cell[-lvl->size].ftile == TILE_SOLID) {
+					cell->wtile[1] = pick_tile(lvl->tset, TILE_RWALL);
+				}
+				break;
+
+			case TILE_DOORWAY:
+				if(j > 0 && cell[-1].ftile != TILE_SOLID) {
+					cell->wtile[0] = pick_tile(lvl->tset, TILE_LCDOOR);
+				}
+				if(i > 0 && cell[-lvl->size].ftile != TILE_SOLID) {
+					cell->wtile[1] = pick_tile(lvl->tset, TILE_RCDOOR);
+				}
+
+			default:
+				break;
+			}
+			cell++;
+		}
+	}
+
+	/* second pass: assign floor tiles */
+	cell = lvl->cell;
+	for(i=0; i<lvl->size; i++) {
+		for(j=0; j<lvl->size; j++) {
+			switch(cell->ftile) {
+			case TILE_FLOOR:
+			case TILE_DOORWAY:
+				cell->ftile = pick_tile(lvl->tset, TILE_FLOOR);
+				break;
+
+			case TILE_SOLID:
+				cell->ftile = pick_tile(lvl->tset, TILE_SOLID);
+				break;
+
+			default:
+				break;
+			}
+			cell++;
+		}
+	}
+
+	return 0;
 }

@@ -5,6 +5,17 @@
 
 struct tile;
 
+enum tiletype {
+	TILE_UNKNOWN,
+	/* floor tile types */
+	TILE_SOLID,
+	TILE_FLOOR,
+	/* wall tile types */
+	TILE_LWALL, TILE_RWALL,
+	TILE_LCDOOR, TILE_RCDOOR,
+	TILE_LODOOR, TILE_RODOOR
+};
+
 struct tileset {
 	char *name;
 	struct tile *tiles;
@@ -14,6 +25,7 @@ struct tileset {
 
 struct tile {
 	char *name;
+	enum tiletype type;
 	int xoffs, yoffs;
 	int xsz, ysz;
 };
@@ -26,6 +38,10 @@ void destroy_tileset(struct tileset *tset);
 
 int find_tile_id(struct tileset *tset, const char *name);
 
+/* pick a random tile of the specified type */
+int pick_tile(struct tileset *tset, enum tiletype type);
+
+/* coordinates are bottom-left */
 void blit_tile(struct gfximage *dest, int x, int y, struct tileset *tset, int idx);
 
 #endif	/* TILES_H_ */

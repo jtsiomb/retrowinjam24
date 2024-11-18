@@ -4,7 +4,13 @@
 #include "tiles.h"
 #include "types.h"
 
+/* levelcell flags */
+enum {
+	CELL_WALK	= 1
+};
+
 struct levelcell {
+	unsigned int flags;
 	int ftile, wtile[2];	/* floor and wall tiles -1 for none */
 
 	/* TODO players, NPCs, items, etc */
@@ -14,6 +20,8 @@ struct level {
 	struct tileset *tset;
 	int size;			/* size x size level (keep size pow2) */
 	int shift;			/* shift needed to multiply by size */
+
+	int spawnx, spawny;
 
 	struct levelcell *cell;		/* linear size x size array of cells */
 };

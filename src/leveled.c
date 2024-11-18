@@ -109,7 +109,7 @@ static int edupdate(void)
 
 static void eddraw(void)
 {
-	int i, j, x, y, x0, y0, x1, y1, tile, hoverx, hovery;
+	int i, j, x, y, x0, y0, x1, y1, tid, hoverx, hovery;
 	struct levelcell *cell;
 
 	edupdate();
@@ -126,14 +126,22 @@ static void eddraw(void)
 			y0 = y;
 			y1 = y + TILE_YSZ;
 
-			if(x0 >= XRES || x1 < 0 || y0 >= YRES || y1 < 0) continue;
+			if(x0 >= XRES || x1 < 0 || y0 >= YRES + 128 || y1 < 0) continue;
 
 			cell = get_levelcell(&lvl, j, i);
-			tile = cell->ftile > 0 ? cell->ftile : 0;
-			blit_tile(gfx_back, x0, y0, lvl.tset, tile);
+			if(cell->wtile[0]) {
+				blit_tile(gfx_back, x0, y0 + TILE_YSZ / 2, lvl.tset, cell->wtile[0]);
+			}
+			if(cell->wtile[1]) {
+				blit_tile(gfx_back, x0 + TILE_XSZ / 2, y0 + TILE_YSZ / 2, lvl.tset, cell->wtile[1]);
+			}
+
+			tid = cell->ftile > 0 ? cell->ftile : 0;
+			y = lvl.tset->tiles[tid].type == TILE_SOLID ? y1 - 92 : y1;
+			blit_tile(gfx_back, x0, y, lvl.tset, tid);
 
 			if(j == hoverx && i == hovery) {
-				blit_tile(gfx_back, x0, y0, lvl.tset, 1);
+				blit_tile(gfx_back, x0, y1, lvl.tset, 1);
 			}
 		}
 	}
