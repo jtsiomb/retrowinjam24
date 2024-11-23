@@ -15,7 +15,7 @@ struct font *fnt_load(const char *fname)
 	int hdr_lines = 0;
 	struct font *fnt;
 	struct glyph *g;
-	int i, max_pixval = 255, num_pixels;
+	int i, max_pixval = 255, num_pixels, max_height = 0;
 	int greyscale = 0;
 
 	if(!(fp = fopen(fname, "rb"))) {
@@ -43,8 +43,12 @@ struct font *fnt_load(const char *fname)
 		if(line[0] == '#') {
 			int c, res;
 			int x, y, xsz, ysz, orig_x, orig_y, adv, line_adv, baseline;
+			int ptsize;
 
-			if((res = sscanf(line + 1, " advance: %d\n", &line_adv)) == 1) {
+			if((res = sscanf(line + 1, " size: %d\n", &ptsize)) == 1) {
+				/* ignore size */
+
+			} else if((res = sscanf(line + 1, " advance: %d\n", &line_adv)) == 1) {
 				fnt->line_advance = line_adv;
 
 			} else if((res = sscanf(line + 1, " baseline: %d\n", &baseline)) == 1) {
@@ -61,6 +65,9 @@ struct font *fnt_load(const char *fname)
 					g->orig_x = orig_x;
 					g->orig_y = orig_y;
 					g->advance = adv;
+					g->imgptr = (unsigned char*)1;	/* mark it used for the precalc below */
+
+					if(ysz > max_height) max_height = ysz;
 				}
 
 			} else {
@@ -123,6 +130,17 @@ struct font *fnt_load(const char *fname)
 	}
 
 	fnt->xshift = calc_shift(fnt->xsz);
+
+	g = fnt->glyphs;
+	for(i=0; i<256; i++) {
+		if(g->imgptr) {
+			int row = g->y / max_height;
+			g->y = row * max_height;
+			g->height = max_height;
+			g->imgptr = fnt->pixels + (g->y << fnt->xshift) + g->x;
+		}
+		g++;
+	}
 	return fnt;
 
 err:
@@ -134,4 +152,63 @@ void fnt_free(struct font *fnt)
 {
 	if(!fnt) return;
 	free(fnt->pixels);
+}
+
+void fnt_initdraw(struct fontdraw *draw, unsigned char *img, int width, int height, int pitch)
+{
+	draw->img = img;
+	draw->ptr = img;
+	draw->width = width;
+	draw->height = height;
+	draw->pitch = pitch > 0 ? pitch : width;
+	draw->curx = draw->cury = 0;
+	draw->colorshift = 0;
+	draw->colorbase = 0;
+}
+
+void fnt_position(struct fontdraw *draw, int x, int y)
+{
+	draw->curx = x;
+	draw->cury = y;
+	draw->ptr = draw->img + y * draw->pitch + x;
+}
+
+void fnt_drawglyph(struct font *fnt, struct fontdraw *draw, int c)
+{
+	int i, j;
+	struct glyph *g;
+	unsigned char *dest, *src;
+
+	if(c < 0 || c >= 256) return;
+	g = fnt->glyphs + c;
+	if(!g->imgptr) return;
+
+	dest = draw->ptr;
+	src = g->imgptr;
+
+	for(i=0; i<g->height; i++) {
+		for(j=0; j<g->width; j++) {
+			dest[j] = (src[j] >> draw->colorshift) + draw->colorbase;
+		}
+		dest += draw->pitch;
+		src += fnt->xsz;
+	}
+
+	draw->ptr += g->advance;
+}
+
+void fnt_drawstr(struct font *fnt, struct fontdraw *draw, const char *str)
+{
+	while(*str) {
+		fnt_drawglyph(fnt, draw, *(unsigned char*)str++);
+	}
+}
+
+int fnt_strwidth(struct font *fnt, const char *str)
+{
+	int width = 0;
+	while(*str) {
+		width += fnt->glyphs[*(unsigned char*)str++].advance;
+	}
+	return width;
 }

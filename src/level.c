@@ -217,10 +217,16 @@ static int proc_map(struct level *lvl)
 
 			case TILE_DOORWAY:
 				if(j > 0 && cell[-1].ftile != TILE_SOLID) {
-					cell->wtile[0] = pick_tile(lvl->tset, TILE_LCDOOR);
+					cell->wtile[1] = pick_tile(lvl->tset, TILE_RWALL);
+					if(j < lvl->size - 1) {
+						cell[1].wtile[0] = pick_tile(lvl->tset, TILE_LCDOOR);
+					}
 				}
 				if(i > 0 && cell[-lvl->size].ftile != TILE_SOLID) {
-					cell->wtile[1] = pick_tile(lvl->tset, TILE_RCDOOR);
+					cell->wtile[0] = pick_tile(lvl->tset, TILE_LWALL);
+					if(i < lvl->size - 1) {
+						cell[lvl->size].wtile[1] = pick_tile(lvl->tset, TILE_RCDOOR);
+					}
 				}
 
 			default:

@@ -12,6 +12,7 @@ struct glyph {
 	int orig_x, orig_y;
 	int advance;
 
+	unsigned char *imgptr;
 	unsigned char *rle;
 };
 
@@ -35,10 +36,13 @@ struct fontdraw {
 struct font *fnt_load(const char *fname);
 void fnt_free(struct font *fnt);
 
+void fnt_initdraw(struct fontdraw *draw, unsigned char *img, int width, int height, int pitch);
 void fnt_position(struct fontdraw *draw, int x, int y);
 void fnt_drawglyph(struct font *fnt, struct fontdraw *draw, int c);
 
 void fnt_drawstr(struct font *fnt, struct fontdraw *draw, const char *str);
+
+int fnt_strwidth(struct font *fnt, const char *str);
 
 
 #endif	/* FONT_H_ */

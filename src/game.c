@@ -1,18 +1,24 @@
 #include "config.h"
 
 #include <stdio.h>
+#include <string.h>
 #include <math.h>
 #include "game.h"
 #include "gfx.h"
 #include "tiles.h"
 #include "options.h"
 #include "screen.h"
+#include "font.h"
 
 struct level lvl;
+struct font *fnt;
+
+static unsigned int nframes;
+static char fpsbuf[32];
 
 int game_init(void)
 {
-	int vmidx;
+	int i, vmidx;
 
 	if(gfx_init() == -1) {
 		return -1;
@@ -44,6 +50,17 @@ windowed:
 		}
 	}
 
+	if(!(fnt = fnt_load("data/test.fnt"))) {
+		fprintf(stderr, "failed to load font\n");
+		goto err;
+	}
+
+	for(i=0; i<16; i++) {
+		int val = i << 4;
+		gfx_setcolor(i + 240, val, val, val);
+	}
+
+
 	if(init_leveled() == -1) return -1;
 	start_screen(screens[0]);
 
@@ -56,17 +73,53 @@ err:
 
 void game_cleanup(void)
 {
+	fnt_free(fnt);
 	gfx_destroy();
 }
 
+static void update_fps(void)
+{
+	static unsigned long prev_fps_upd;
+	float fps, dt;
+	unsigned int interv = time_msec - prev_fps_upd;
+
+	if(interv < 1000 || nframes < 20) return;
+
+	dt = (float)interv / 1000.0f;
+	fps = (float)nframes / dt;
+
+	sprintf(fpsbuf, "%.1f fps", fps);
+
+	nframes = 0;
+	prev_fps_upd = time_msec;
+}
 
 void game_draw(void)
 {
+	struct fontdraw fdr;
+	int i, xsz;
+	unsigned char *ptr;
+
+	update_fps();
+
 	gfx_fill(gfx_back, 4, 0);
 
 	curscr->draw();
 
+	ptr = gfx_imgstart(gfx_back);
+	xsz = fnt_strwidth(fnt, fpsbuf);
+	for(i=0; i<fnt->line_advance; i++) {
+		memset(ptr, 240, xsz);
+		ptr += gfx_back->pitch;
+	}
+	fnt_initdraw(&fdr, gfx_back->pixels, gfx_back->width, gfx_back->height, gfx_back->pitch);
+	fdr.colorbase = 240;
+	fdr.colorshift = 4;
+	fnt_drawstr(fnt, &fdr, fpsbuf);
+	gfx_imgend(gfx_back);
+
 	gfx_swapbuffers(1);
+	nframes++;
 }
 
 
