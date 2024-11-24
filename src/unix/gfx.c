@@ -65,6 +65,10 @@ void gfx_imgend(struct gfximage *img)
 {
 }
 
+void gfx_imgdebug(struct gfximage *img)
+{
+}
+
 void gfx_fill(struct gfximage *img, unsigned int color, struct gfxrect *rect)
 {
 }

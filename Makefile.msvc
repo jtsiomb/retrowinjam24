@@ -1,7 +1,7 @@
 obj = src\win32\main_w32.obj src\win32\gfxdx.obj src\win32\ddutil.obj \
 	  src\dynarr.obj src\game.obj src\gfx.obj src\level.obj src\leveled.obj \
 	  src\logger.obj src\options.obj src\screen.obj src\tiles.obj \
-	  src\treestor.obj src\ts_text.obj
+	  src\treestor.obj src\ts_text.obj src\font.obj src\util.obj
 bin = game.exe
 
 #opt = /O2 /G5

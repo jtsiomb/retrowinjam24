@@ -9,6 +9,7 @@
 #include "types.h"
 #include "game.h"
 #include "ddutil.h"
+#include "util.h"
 
 struct gfxmode *gfx_modes, *gfx_curmode;
 int gfx_num_modes;
@@ -35,6 +36,7 @@ int gfx_init(void)
 {
 	int i, modes_size;
 	IDirectDraw *dd1;
+	DDCAPS caps;
 
 	if(!(gfx_front = calloc(2, sizeof *gfx_front))) {
 		MessageBox(win, "failed to allocate memory", "fatal", MB_OK);
@@ -71,6 +73,39 @@ int gfx_init(void)
 	for(i=0; i<gfx_num_modes; i++) {
 		printf(" - %dx%d %dbpp\n", gfx_modes[i].width, gfx_modes[i].height, gfx_modes[i].bpp);
 	}
+
+	memset(&caps, 0, sizeof caps);
+	caps.dwSize = sizeof caps;
+	if(IDirectDraw2_GetCaps(ddraw, &caps, 0) == 0) {
+		unsigned long vmem, vmemfree;
+		DDSCAPS ddscaps = {0};
+		ddscaps.dwCaps = DDSCAPS_VIDEOMEMORY;
+		if(IDirectDraw2_GetAvailableVidMem(ddraw, &ddscaps, &vmem, &vmemfree) != 0) {
+			vmem = caps.dwVidMemTotal;
+			vmemfree = caps.dwVidMemFree;
+		}
+		printf("video driver capabilities:\n");
+		printf("  video RAM: %s ", memsizestr(vmem));
+		printf("(free: %s)\n", memsizestr(vmemfree));
+		printf("  blit: %s\n", (caps.dwCaps & DDCAPS_BLT) ? "yes" : "no");
+		printf("  colorfill: %s\n", (caps.dwCaps & DDCAPS_BLTCOLORFILL) ? "yes" : "no");
+		printf("  async blit: %s\n", (caps.dwCaps & DDCAPS_BLTQUEUE) ? "yes" : "no");
+		printf("  scaling blit: %s\n", (caps.dwCaps & DDCAPS_BLTSTRETCH) ? "yes" : "no");
+		printf("  blit from sys mem: %s\n", (caps.dwCaps & DDCAPS_CANBLTSYSMEM) ? "yes" : "no");
+		printf("  colorkey: %s\n", (caps.dwCaps & DDCAPS_COLORKEY) ? "yes" : "no");
+		if(caps.dwCaps & DDCAPS_COLORKEY) {
+			printf("    srcblt: %s\n", (caps.dwCKeyCaps & DDCKEYCAPS_SRCBLT) ? "yes" : "no");
+		}
+
+		printf("  misc:");
+		if(caps.dwCaps2 & DDCAPS2_NONLOCALVIDMEM) printf(" nonlocalvmem");
+		if(caps.dwCaps2 & DDCAPS2_NOPAGELOCKREQUIRED) printf(" nopagelock");
+		putchar('\n');
+
+		printf("  full 256c palette: %s\n", (caps.dwPalCaps & DDPCAPS_ALLOW256) ? "yes" : "no");
+	}
+
+
 	return 0;
 }
 
@@ -426,7 +461,7 @@ int gfx_imginit(struct gfximage *img, int x, int y, int bpp)
 	ddsd.dwFlags = DDSD_WIDTH | DDSD_HEIGHT | DDSD_CAPS;
 	ddsd.dwWidth = x;
 	ddsd.dwHeight = y;
-	ddsd.ddsCaps.dwCaps = DDSCAPS_OFFSCREENPLAIN/* | DDSCAPS_VIDEOMEMORY*/;
+	ddsd.ddsCaps.dwCaps = DDSCAPS_OFFSCREENPLAIN | DDSCAPS_VIDEOMEMORY;
 
 	if((res = IDirectDraw2_CreateSurface(ddraw, &ddsd, &surf, 0)) != 0) {
 		fprintf(stderr, "failed to create image surface: %s\n", dderrstr(res));
@@ -465,6 +500,25 @@ void gfx_imgend(struct gfximage *img)
 		IDirectDrawSurface *surf = img->data;
 		IDirectDrawSurface_Unlock(surf, 0);
 		img->pixels = 0;
+	}
+}
+
+void gfx_imgdebug(struct gfximage *img)
+{
+	if(img->data) {
+		IDirectDrawSurface *surf = img->data;
+		DDSURFACEDESC ddsd = {0};
+
+		ddsd.dwSize = sizeof ddsd;
+		if(IDirectDrawSurface_GetSurfaceDesc(surf, &ddsd) != 0) {
+			printf("imgdebug: GetSurfaceDesc failed\n");
+			return;
+		}
+
+		printf("ddsurf %dx%d (%s)\n", ddsd.dwWidth, ddsd.dwHeight,
+				ddsd.ddsCaps.dwCaps & DDSCAPS_VIDEOMEMORY ? "vmem" : "mainmem");
+	} else {
+		printf("nodd %dx%d\n", img->width, img->height);
 	}
 }
 

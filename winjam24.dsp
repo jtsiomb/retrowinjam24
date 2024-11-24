@@ -43,7 +43,7 @@ RSC=rc.exe
 # PROP Ignore_Export_Lib 0
 # PROP Target_Dir ""
 # ADD BASE CPP /nologo /W3 /GX /O2 /D "WIN32" /D "NDEBUG" /D "_WINDOWS" /D "_MBCS" /YX /FD /c
-# ADD CPP /nologo /W3 /GX /O2 /I "src" /I "src\win32" /I "libs\imago\src" /D "WIN32" /D "NDEBUG" /D "_WINDOWS" /D "_MBCS" /D DIRECTDRAW_VERSION=0x300 /YX /FD /c
+# ADD CPP /nologo /W3 /GX /O2 /I "src" /I "src\win32" /I "libs\imago\src" /D "WIN32" /D "NDEBUG" /D "_WINDOWS" /D "_MBCS" /D DIRECTDRAW_VERSION=0x300 /FR /YX /FD /c
 # ADD BASE MTL /nologo /D "NDEBUG" /mktyplib203 /win32
 # ADD MTL /nologo /D "NDEBUG" /mktyplib203 /win32
 # ADD BASE RSC /l 0x409 /d "NDEBUG"
@@ -110,6 +110,14 @@ SOURCE=.\src\dynarr.c
 # Begin Source File
 
 SOURCE=.\src\dynarr.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\src\font.c
+# End Source File
+# Begin Source File
+
+SOURCE=.\src\font.h
 # End Source File
 # Begin Source File
 
@@ -194,6 +202,10 @@ SOURCE=.\src\ts_text.c
 # Begin Source File
 
 SOURCE=.\src\types.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\src\util.c
 # End Source File
 # Begin Source File
 

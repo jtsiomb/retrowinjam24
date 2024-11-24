@@ -66,6 +66,9 @@ void gfx_imgdestroy(struct gfximage *img);
 void *gfx_imgstart(struct gfximage *img);
 void gfx_imgend(struct gfximage *img);
 
+/* log debug info about an image */
+void gfx_imgdebug(struct gfximage *img);
+
 int gfx_loadimg(struct gfximage *img, const char *fname);
 int gfx_saveimg(struct gfximage *img, const char *fname);
 

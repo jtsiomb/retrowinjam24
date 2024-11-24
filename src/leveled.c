@@ -58,6 +58,8 @@ static int edstart(void)
 		tset = lvl.tset;
 	}
 
+	gfx_imgdebug(tset->img);
+
 	reset_view();
 
 	for(i=0; i<tset->img->ncolors; i++) {

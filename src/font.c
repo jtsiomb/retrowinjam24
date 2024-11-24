@@ -71,7 +71,7 @@ struct font *fnt_load(const char *fname)
 				}
 
 			} else {
-				fprintf(stderr, "%s: invalid glyph info line\n", __func__);
+				fprintf(stderr, "fnt_load: invalid glyph info line\n");
 				goto err;
 			}
 
@@ -79,7 +79,7 @@ struct font *fnt_load(const char *fname)
 			switch(hdr_lines) {
 			case 0:
 				if(line[0] != 'P' || !(line[1] == '6' || line[1] == '5')) {
-					fprintf(stderr, "%s: invalid file format (magic)\n", __func__);
+					fprintf(stderr, "fnt_load: invalid file format (magic)\n");
 					goto err;
 				}
 				greyscale = line[1] == '5';
@@ -87,7 +87,7 @@ struct font *fnt_load(const char *fname)
 
 			case 1:
 				if(sscanf(line, "%u %u", &fnt->xsz, &fnt->ysz) != 2) {
-					fprintf(stderr, "%s: invalid file format (dim)\n", __func__);
+					fprintf(stderr, "fnt_load: invalid file format (dim)\n");
 					goto err;
 				}
 				break;
@@ -97,7 +97,7 @@ struct font *fnt_load(const char *fname)
 					char *endp;
 					max_pixval = strtol(line, &endp, 10);
 					if(endp == line) {
-						fprintf(stderr, "%s: invalid file format (maxval)\n", __func__);
+						fprintf(stderr, "fnt_load: invalid file format (maxval)\n");
 						goto err;
 					}
 				}
