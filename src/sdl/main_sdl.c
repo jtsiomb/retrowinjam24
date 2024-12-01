@@ -2,6 +2,7 @@
 #include <SDL.h>
 #include "game.h"
 #include "options.h"
+#include "logger.h"
 
 unsigned long time_msec;
 static unsigned long start_time;
@@ -15,11 +16,20 @@ static int translate_sdlkey(SDLKey sym);
 static const char *wintext = "win32 retro jam 2024 (cross-platform version)";
 
 
-int main(void)
+int main(int argc, char **argv)
 {
 	unsigned long msec, nframes;
 
+#ifdef _WIN32
+	log_start("game.log");
+#endif
 	load_options("game.cfg");
+
+#ifdef _WIN32
+	if(opt.fullscreen) {
+		putenv("SDL_VIDEODRIVER=directx");
+	}
+#endif
 
 	if(game_init() == -1) {
 		return 1;

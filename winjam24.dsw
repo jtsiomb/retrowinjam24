@@ -30,6 +30,21 @@ Package=<4>
 
 ###############################################################################
 
+Project: "winjam24_sdl"=.\winjam24_sdl.dsp - Package Owner=<4>
+
+Package=<5>
+{{{
+}}}
+
+Package=<4>
+{{{
+    Begin Project Dependency
+    Project_Dep_Name imago
+    End Project Dependency
+}}}
+
+###############################################################################
+
 Global:
 
 Package=<5>
