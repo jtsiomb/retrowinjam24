@@ -7,10 +7,10 @@
 extern HWND win;
 
 IDirectDraw2 *ddraw;
-IDirectDrawSurface *ddfront, *ddback;
+DDSurface *ddfront, *ddback;
 
 
-void *ddlocksurf(IDirectDrawSurface *surf, long *pitchret)
+void *ddlocksurf(DDSurface *surf, unsigned int *pitchret)
 {
 	int i;
 	HRESULT res;
@@ -48,8 +48,8 @@ void *ddlocksurf(IDirectDrawSurface *surf, long *pitchret)
 	return sd.lpSurface;
 }
 
-void ddblit(IDirectDrawSurface *dest, RECT *drect, IDirectDrawSurface *src,
-			RECT *srect, unsigned int flags, DDBLTFX *fx)
+void ddblit(DDSurface *dest, RECT *drect, DDSurface *src, RECT *srect,
+		unsigned int flags, DDBLTFX *fx)
 {
 	int i;
 	HRESULT res;
@@ -78,8 +78,8 @@ void ddblit(IDirectDrawSurface *dest, RECT *drect, IDirectDrawSurface *src,
 #endif
 }
 
-void ddblitfast(IDirectDrawSurface *dest, int x, int y, IDirectDrawSurface *src,
-			RECT *srect, unsigned int flags)
+void ddblitfast(DDSurface *dest, int x, int y, DDSurface *src, RECT *srect,
+		unsigned int flags)
 {
 	int i;
 	HRESULT res;
@@ -108,7 +108,7 @@ void ddblitfast(IDirectDrawSurface *dest, int x, int y, IDirectDrawSurface *src,
 #endif
 }
 
-void ddflip(IDirectDrawSurface *surf)
+void ddflip(DDSurface *surf)
 {
 	int i;
 	HRESULT res;
@@ -136,27 +136,41 @@ void ddflip(IDirectDrawSurface *surf)
 #endif
 }
 
-
-IDirectDrawSurface2 *create_ddsurf2(DDSURFACEDESC *ddsd)
+#ifdef USE_DX5
+DDSurface *create_ddsurf(DDSURFACEDESC *ddsd)
 {
 	HRESULT res;
 	IDirectDrawSurface *surf1;
-	IDirectDrawSurface2 *surf;
+	DDSurface *surf;
 
 	if((res = IDirectDraw2_CreateSurface(ddraw, ddsd, &surf1, 0)) != 0) {
-		fprintf(stderr, "failed to create surface\n");
+		fprintf(stderr, "failed to create surface: %s\n", dderrstr(res));
 		MessageBox(win, dderrstr(res), "failed to create surface", MB_OK);
 		return 0;
 	}
-	if(IDirectDrawSurface_QueryInterface(surf1, &IID_IDirectDrawSurface2, &surf) != 0) {
+	if(IDirectDrawSurface_QueryInterface(surf1, &IID_IDirectDrawSurface3, (void**)&surf) != 0) {
 		IDirectDrawSurface_Release(surf1);
-		fprintf(stderr, "failed to query IDirectDrawSurface2 interface\n");
-		MessageBox(win, "failed to query IDirectDrawSurface2 interface", "fatal", MB_OK);
+		fprintf(stderr, "failed to query IDirectDrawSurface3 interface\n");
+		MessageBox(win, "failed to query IDirectDrawSurface3 interface", "fatal", MB_OK);
 		return 0;
 	}
 	IDirectDrawSurface_Release(surf1);
 	return surf;
 }
+#else
+DDSurface *create_ddsurf(DDSURFACEDESC *ddsd)
+{
+	HRESULT res;
+	IDirectDrawSurface *surf;
+
+	if((res = IDirectDraw2_CreateSurface(ddraw, ddsd, &surf, 0)) != 0) {
+		fprintf(stderr, "failed to create surface: %s\n", dderrstr(res));
+		MessageBox(win, dderrstr(res), "failed to create surface", MB_OK);
+		return 0;
+	}
+	return surf;
+}
+#endif
 
 const char *dderrstr(HRESULT err)
 {

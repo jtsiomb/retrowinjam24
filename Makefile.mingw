@@ -1,5 +1,5 @@
 src = $(wildcard src/*.c) $(wildcard src/win32/*.c)
-obj = $(src:.c=.o)
+obj = $(src:.c=.w32.o)
 dep = $(src:.c=.d)
 bin = game.exe
 
@@ -7,16 +7,23 @@ bin = game.exe
 dbg = -g
 warn = -pedantic -Wall
 
+incdir = -Isrc -Isrc/win32 -Ilibs/imago/src
+libdir = -Llibs/w32
+
 TC=i686-w64-mingw32-
 CC=$(TC)gcc
+AR=$(TC)ar
 
-CFLAGS = $(warn) $(opt) $(dbg) -Isrc -Isrc/win32 -MMD
-LDFLAGS = -lddraw -luser32 -lgdi32 -lwinmm
+CFLAGS = $(warn) $(opt) $(dbg) $(incdir) -MMD
+LDFLAGS = $(libdir) -lddraw -luser32 -lgdi32 -lwinmm -limago
 
-$(bin): $(obj)
+$(bin): $(obj) libs
 	$(CC) -o $@ $(obj) $(LDFLAGS)
 
 -include $(dep)
+
+%.w32.o: %.c
+	$(CC) -o $@ $(CFLAGS) -c $<
 
 .PHONY: clean
 clean:
@@ -26,3 +33,19 @@ clean:
 .PHONY: cleandep
 cleandep:
 	rm -f $(dep)
+
+.PHONY: libs
+libs: imago
+
+.PHONY: cleanlibs
+cleanlibs: clean-imago
+
+.PHONY: imago
+imago:
+	$(MAKE) -C libs/imago CC=$(CC) AR=$(AR) sys=mingw
+
+.PHONY: clean-imago
+clean-imago:
+	$(MAKE) -C libs/imago sys=mingw clean
+
+# vi:ft=make:

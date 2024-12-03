@@ -48,7 +48,7 @@ int gfx_init(void)
 		MessageBox(win, "failed to create DirectDraw instance", "fatal", MB_OK);
 		return -1;
 	}
-	if(IDirectDraw_QueryInterface(dd1, &IID_IDirectDraw2, &ddraw) != 0) {
+	if(IDirectDraw_QueryInterface(dd1, &IID_IDirectDraw2, (void**)&ddraw) != 0) {
 		IDirectDraw_Release(dd1);
 		MessageBox(win, "failed to query DirectDraw2 interface", "fatal", MB_OK);
 		return -1;
@@ -261,7 +261,7 @@ int gfx_setup(int xsz, int ysz, int bpp, unsigned int flags)
 		sd.dwBackBufferCount = 1;
 		sd.ddsCaps.dwCaps = DDSCAPS_PRIMARYSURFACE | DDSCAPS_COMPLEX | DDSCAPS_FLIP;
 
-		if(IDirectDraw_CreateSurface(ddraw, &sd, &ddfront, 0) != 0) {
+		if(!(ddfront = create_ddsurf(&sd))) {
 			MessageBox(win, "failed to create swap chain", "fatal", MB_OK);
 			return -1;
 		}
@@ -279,7 +279,7 @@ int gfx_setup(int xsz, int ysz, int bpp, unsigned int flags)
 		sd.dwFlags = DDSD_CAPS;
 		sd.ddsCaps.dwCaps = DDSCAPS_PRIMARYSURFACE;
 
-		if(IDirectDraw_CreateSurface(ddraw, &sd, &ddfront, 0) != 0) {
+		if(!(ddfront = create_ddsurf(&sd))) {
 			MessageBox(win, "failed to create frontbuffer surface", "fatal", MB_OK);
 			return -1;
 		}
@@ -288,9 +288,9 @@ int gfx_setup(int xsz, int ysz, int bpp, unsigned int flags)
 		sd.dwFlags = DDSD_WIDTH | DDSD_HEIGHT | DDSD_CAPS;
 		sd.dwWidth = xsz;
 		sd.dwHeight = ysz;
-		sd.ddsCaps.dwCaps = DDSCAPS_OFFSCREENPLAIN;// | DDSCAPS_VIDEOMEMORY;
+		sd.ddsCaps.dwCaps = DDSCAPS_OFFSCREENPLAIN | DDSCAPS_VIDEOMEMORY;
 
-		if(IDirectDraw_CreateSurface(ddraw, &sd, &ddback, 0) != 0) {
+		if(!(ddback = create_ddsurf(&sd))) {
 			MessageBox(win, "failed to create backbuffer surface", "fatal", MB_OK);
 			goto err;
 		}
@@ -453,9 +453,8 @@ void gfx_setcolors(int start, int count, struct gfxcolor *colors)
 
 int gfx_imginit(struct gfximage *img, int x, int y, int bpp)
 {
-	HRESULT res;
 	DDSURFACEDESC ddsd = {0};
-	IDirectDrawSurface *surf;
+	DDSurface *surf;
 
 	ddsd.dwSize = sizeof ddsd;
 	ddsd.dwFlags = DDSD_WIDTH | DDSD_HEIGHT | DDSD_CAPS;
@@ -463,8 +462,7 @@ int gfx_imginit(struct gfximage *img, int x, int y, int bpp)
 	ddsd.dwHeight = y;
 	ddsd.ddsCaps.dwCaps = DDSCAPS_OFFSCREENPLAIN | DDSCAPS_VIDEOMEMORY;
 
-	if((res = IDirectDraw2_CreateSurface(ddraw, &ddsd, &surf, 0)) != 0) {
-		fprintf(stderr, "failed to create image surface: %s\n", dderrstr(res));
+	if(!(surf = create_ddsurf(&ddsd))) {
 		return -1;
 	}
 
@@ -515,7 +513,7 @@ void gfx_imgdebug(struct gfximage *img)
 			return;
 		}
 
-		printf("ddsurf %dx%d (%s)\n", ddsd.dwWidth, ddsd.dwHeight,
+		printf("ddsurf %dx%d (%s)\n", (int)ddsd.dwWidth, (int)ddsd.dwHeight,
 				ddsd.ddsCaps.dwCaps & DDSCAPS_VIDEOMEMORY ? "vmem" : "mainmem");
 	} else {
 		printf("nodd %dx%d\n", img->width, img->height);
@@ -526,7 +524,7 @@ void gfx_fill(struct gfximage *img, unsigned int color, struct gfxrect *rect)
 {
 	RECT r, *rp = 0;
 	DDBLTFX fx = {0};
-	IDirectDrawSurface *surf = img->data;
+	DDSurface *surf = img->data;
 
 	if(!img->data) {
 		gfx_swfill(img, color, rect);
@@ -544,7 +542,7 @@ void gfx_fill(struct gfximage *img, unsigned int color, struct gfxrect *rect)
 	fx.dwSize = sizeof fx;
 	fx.dwFillPixel = color;
 
-	ddblit(ddback, rp, 0, 0, DDBLT_COLORFILL | DDBLT_WAIT, &fx);
+	ddblit(surf, rp, 0, 0, DDBLT_COLORFILL | DDBLT_WAIT, &fx);
 }
 
 /* set which color to be used as a colorkey for transparent blits */
@@ -563,6 +561,7 @@ void gfx_imgkey(struct gfximage *img, int ckey)
 void gfx_blit(struct gfximage *dest, int x, int y, struct gfximage *src, struct gfxrect *srect)
 {
 	RECT dr, sr;
+	DDSurface *ddsrc = src->data;
 
 	if(!dest->data) {
 		gfx_swblit(dest, x, y, src, srect);
@@ -585,12 +584,20 @@ void gfx_blit(struct gfximage *dest, int x, int y, struct gfximage *src, struct 
 	dr.right = x + sr.right - sr.left;
 	dr.bottom = y + sr.bottom - sr.top;
 
-	ddblit(dest->data, &dr, src->data, &sr, DDBLT_WAIT, 0);
+#ifdef USE_DX5
+	if(!(dest->flags & GFX_IMG_VIDMEM)) {
+		IDirectDrawSurface3_PageLock(ddsrc, 0);
+		ddblit(dest->data, &dr, ddsrc, &sr, DDBLT_WAIT, 0);
+		IDirectDrawSurface3_PageUnlock(ddsrc, 0);
+	} else
+#endif
+	ddblit(dest->data, &dr, ddsrc, &sr, DDBLT_WAIT, 0);
 }
 
 void gfx_blitkey(struct gfximage *dest, int x, int y, struct gfximage *src, struct gfxrect *srect)
 {
 	RECT sr, dr;
+	DDSurface *ddsrc = src->data;
 
 	if(!dest->data) {
 		gfx_swblitkey(dest, x, y, src, srect);
@@ -613,7 +620,14 @@ void gfx_blitkey(struct gfximage *dest, int x, int y, struct gfximage *src, stru
 	dr.right = x + sr.right - sr.left;
 	dr.bottom = y + sr.bottom - sr.top;
 
-	ddblit(dest->data, &dr, src->data, &sr, DDBLT_WAIT | DDBLT_KEYSRC, 0);
+#ifdef USE_DX5
+	if(!(dest->flags & GFX_IMG_VIDMEM)) {
+		IDirectDrawSurface3_PageLock(ddsrc, 0);
+		ddblit(dest->data, &dr, ddsrc, &sr, DDBLT_WAIT | DDBLT_KEYSRC, 0);
+		IDirectDrawSurface3_PageUnlock(ddsrc, 0);
+	} else
+#endif
+	ddblit(dest->data, &dr, ddsrc, &sr, DDBLT_WAIT | DDBLT_KEYSRC, 0);
 }
 
 void gfx_swapbuffers(int vsync)
@@ -635,7 +649,7 @@ void gfx_swapbuffers(int vsync)
 		void *dpixels;
 		unsigned char *dptr8, *sptr;
 		uint32_t *dptr32;
-		long dpitch;
+		unsigned int dpitch;
 		PALETTEENTRY *col;
 
 		if(!gfx_imgstart(gfx_back)) return;
@@ -680,6 +694,14 @@ void gfx_swapbuffers(int vsync)
 	}
 
 	GetWindowRect(win, &rect);
+#ifdef USE_DX5
+	if(!(gfx_back->flags & GFX_IMG_VIDMEM)) {
+		IDirectDrawSurface3_PageLock(ddback, 0);
+		ddblitfast(ddfront, rect.left + client_xoffs, rect.top + client_yoffs,
+				ddback, 0, DDBLTFAST_WAIT);
+		IDirectDrawSurface3_PageUnlock(ddback, 0);
+	} else
+#endif
 	ddblitfast(ddfront, rect.left + client_xoffs, rect.top + client_yoffs,
 			ddback, 0, DDBLTFAST_WAIT);
 }
