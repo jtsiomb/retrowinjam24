@@ -25,6 +25,7 @@ static int client_xoffs, client_yoffs;
 
 static HRESULT WINAPI enum_modes(DDSURFACEDESC *sdesc, void *cls);
 static int calc_mask_shift(unsigned int mask);
+static int surf_in_vidmem(DDSurface *surf);
 
 
 static void gfx_swfill(struct gfximage *img, unsigned int color, struct gfxrect *rect);
@@ -304,14 +305,14 @@ int gfx_setup(int xsz, int ysz, int bpp, unsigned int flags)
 		fb_bpp = pf.dwRGBBitCount;
 	}
 
+	gfx_front->data = ddfront;
+	gfx_back->data = ddback;
 	for(i=0; i<2; i++) {
 		gfx_front[i].width = xsz;
 		gfx_front[i].height = ysz;
-		gfx_front[i].flags = GFX_IMG_VIDMEM;
+		gfx_front[i].flags = surf_in_vidmem(gfx_front[i].data) ? GFX_IMG_VIDMEM : 0;
 	}
 	gfx_front->bpp = fb_bpp;
-	gfx_front->data = ddfront;
-	gfx_back->data = ddback;
 
 	/* back buffer bpp is always the requested bpp. If it doesn't match the
 	 * framebuffer bpp, then do pixel format conversion on swap buffers.
@@ -471,6 +472,7 @@ int gfx_imginit(struct gfximage *img, int x, int y, int bpp)
 	img->height = y;
 	img->bpp = bpp;
 	img->data = surf;
+	img->flags = surf_in_vidmem(surf) ? GFX_IMG_VIDMEM : 0;
 	return 0;
 }
 
@@ -495,7 +497,7 @@ void *gfx_imgstart(struct gfximage *img)
 void gfx_imgend(struct gfximage *img)
 {
 	if(img->data) {
-		IDirectDrawSurface *surf = img->data;
+		DDSurface *surf = img->data;
 		IDirectDrawSurface_Unlock(surf, 0);
 		img->pixels = 0;
 	}
@@ -504,7 +506,7 @@ void gfx_imgend(struct gfximage *img)
 void gfx_imgdebug(struct gfximage *img)
 {
 	if(img->data) {
-		IDirectDrawSurface *surf = img->data;
+		DDSurface *surf = img->data;
 		DDSURFACEDESC ddsd = {0};
 
 		ddsd.dwSize = sizeof ddsd;
@@ -709,6 +711,16 @@ void gfx_swapbuffers(int vsync)
 void gfx_waitvsync(void)
 {
 	IDirectDraw2_WaitForVerticalBlank(ddraw, DDWAITVB_BLOCKBEGIN, 0);
+}
+
+static int surf_in_vidmem(DDSurface *surf)
+{
+	DDSURFACEDESC ddsd = {0};
+	ddsd.dwSize = sizeof ddsd;
+	if(IDirectDrawSurface_GetSurfaceDesc(surf, &ddsd) != 0) {
+		return -1;
+	}
+	return ddsd.ddsCaps.dwCaps & DDSCAPS_VIDEOMEMORY;
 }
 
 
