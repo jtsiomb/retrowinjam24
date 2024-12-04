@@ -2,6 +2,7 @@
 #include "game.h"
 #include "level.h"
 #include "screen.h"
+#include "font.h"
 
 #define TILE_HALF_YSZ	(TILE_YSZ >> 1)
 
@@ -109,10 +110,14 @@ static int edupdate(void)
 	return 1;
 }
 
+static int frmstat_nblits, frmstat_ntiles;
+
 static void eddraw(void)
 {
 	int i, j, x, y, x0, y0, x1, y1, tid, hoverx, hovery;
 	struct levelcell *cell;
+
+	frmstat_nblits = frmstat_ntiles = 0;
 
 	edupdate();
 
@@ -128,24 +133,45 @@ static void eddraw(void)
 			y0 = y;
 			y1 = y + TILE_YSZ;
 
-			if(x0 >= XRES || x1 < 0 || y0 >= YRES + 128 || y1 < 0) continue;
+			if(x0 >= XRES || x1 < 0 || y0 >= YRES + 96 || y1 < 0) continue;
+
+			frmstat_ntiles++;
 
 			cell = get_levelcell(&lvl, j, i);
-			if(cell->wtile[0]) {
+			if(cell->wtile[0] > 0) {
 				blit_tile(gfx_back, x0, y0 + TILE_YSZ / 2, lvl.tset, cell->wtile[0]);
+				frmstat_nblits++;
 			}
-			if(cell->wtile[1]) {
+			if(cell->wtile[1] > 0) {
 				blit_tile(gfx_back, x0 + TILE_XSZ / 2, y0 + TILE_YSZ / 2, lvl.tset, cell->wtile[1]);
+				frmstat_nblits++;
 			}
 
-			tid = cell->ftile > 0 ? cell->ftile : 0;
-			y = lvl.tset->tiles[tid].type == TILE_SOLID ? y1 - 96 : y1;
-			blit_tile(gfx_back, x0, y, lvl.tset, tid);
+			if(y0 < YRES) {
+				tid = cell->ftile > 0 ? cell->ftile : 0;
+				y = lvl.tset->tiles[tid].type == TILE_SOLID ? y1 - 96 : y1;
+				blit_tile(gfx_back, x0, y, lvl.tset, tid);
+				frmstat_nblits++;
 
-			if(j == hoverx && i == hovery) {
-				blit_tile(gfx_back, x0, y1, lvl.tset, 1);
+				if(j == hoverx && i == hovery) {
+					blit_tile(gfx_back, x0, y1, lvl.tset, 1);
+				}
 			}
 		}
+	}
+
+	if(showdbg) {
+		char buf[64];
+		struct fontdraw fdr;
+		gfx_imgstart(gfx_back);
+		fnt_initdraw(&fdr, gfx_back->pixels, gfx_back->width, gfx_back->height, gfx_back->pitch);
+		fdr.colorbase = 240;
+		fdr.colorshift = 4;
+		fnt_position(&fdr, 0, 20);
+		sprintf(buf, "tiles: %d/%d (%d blits)", frmstat_ntiles, lvl.size << lvl.shift,
+				frmstat_nblits);
+		fnt_drawstr(fnt, &fdr, buf);
+		gfx_imgend(gfx_back);
 	}
 }
 

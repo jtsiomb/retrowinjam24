@@ -12,6 +12,7 @@
 
 struct level lvl;
 struct font *fnt;
+int showdbg;
 
 static unsigned int nframes;
 static char fpsbuf[32];
@@ -125,9 +126,19 @@ void game_draw(void)
 
 void game_keyboard(int key, int press)
 {
-	if(press && key == 27) {
-		game_quit();
-		return;
+	if(press) {
+		switch(key) {
+		case 27:
+			game_quit();
+			return;
+
+		case '`':
+			showdbg ^= 1;
+			break;
+
+		default:
+			break;
+		}
 	}
 
 	curscr->keyb(key, press);

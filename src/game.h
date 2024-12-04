@@ -12,6 +12,8 @@
 extern unsigned long time_msec;		/* defined in main*.c */
 
 extern struct level lvl;
+extern struct font *fnt;
+extern int showdbg;
 
 /* special keys */
 enum {
