@@ -147,9 +147,9 @@ static void eddraw(void)
 				frmstat_nblits++;
 			}
 
-			if(y0 < YRES) {
-				tid = cell->ftile > 0 ? cell->ftile : 0;
-				y = lvl.tset->tiles[tid].type == TILE_SOLID ? y1 - 96 : y1;
+			tid = cell->ftile > 0 ? cell->ftile : 0;
+			y = lvl.tset->tiles[tid].type == TILE_SOLID ? y1 - 96 : y1;
+			if(y < YRES + TILE_YSZ) {
 				blit_tile(gfx_back, x0, y, lvl.tset, tid);
 				frmstat_nblits++;
 

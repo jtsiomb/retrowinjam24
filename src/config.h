@@ -6,6 +6,6 @@
 #pragma warning(disable:4996)
 #endif
 
-#define USE_DX5
+/*#define USE_DX5*/
 
 #endif	/* CONFIG_H_ */
