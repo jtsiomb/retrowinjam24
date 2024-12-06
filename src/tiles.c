@@ -77,6 +77,7 @@ int load_tileset(struct tileset *tset, const char *fname)
 			vec = ts_get_attr_vec(tsnode, "size", defsize);
 			tile->xsz = (int)vec[0];
 			tile->ysz = (int)vec[1];
+			tile->pickprio = ts_get_attr_int(tsnode, "pick", 0);
 			tile++;
 		}
 		tsnode = tsnode->next;
@@ -115,17 +116,26 @@ int find_tile_id(struct tileset *tset, const char *name)
 
 int pick_tile(struct tileset *tset, enum tiletype type)
 {
-	int i, num = 0;
-	int *pool = alloca(tset->num_tiles * sizeof *pool);
+	unsigned int i, pick, cdf, num = 0;
+	struct {int tid, cdf;} *pool = alloca(tset->num_tiles * sizeof *pool);
 
 	for(i=0; i<tset->num_tiles; i++) {
 		if(tset->tiles[i].type == type) {
-			pool[num++] = i;
+			pool[num].tid = i;
+			pool[num].cdf = (num ? pool[num - 1].cdf : 0) + tset->tiles[i].pickprio;
+			num++;
 		}
 	}
 
 	if(!num) return -1;
-	return pool[rand() % num];
+
+	pick = rand() & 0xffff;
+
+	for(i=0; i<num - 1; i++) {
+		cdf = (pool[i].cdf << 16) / pool[num - 1].cdf;
+		if(pick < cdf) return pool[i].tid;
+	}
+	return pool[num - 1].tid;
 }
 
 void blit_tile(struct gfximage *dest, int x, int y, struct tileset *tset, int idx)

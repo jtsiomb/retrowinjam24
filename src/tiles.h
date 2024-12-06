@@ -28,6 +28,7 @@ struct tile {
 	enum tiletype type;
 	int xoffs, yoffs;
 	int xsz, ysz;
+	int pickprio;
 };
 
 struct tileset *alloc_tileset(void);
