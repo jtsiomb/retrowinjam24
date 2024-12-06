@@ -1,0 +1,68 @@
+#!/bin/sh
+
+build=sdl
+buildname=SDL
+opt=false
+dbg=true
+
+for arg in $*; do
+	case $arg in
+	--build-*)
+		build=`echo $arg | sed 's/--build-//'`
+		;;
+
+	--enable-opt)
+		opt=true
+		;;
+	--disable-opt)
+		opt=false
+		;;
+	--enable-debug)
+		dbg=true
+		;;
+	--disable-debug)
+		dbg=false
+		;;
+	*)
+		;;
+	esac
+done
+
+case $build in
+sdl)
+	makefile=Makefile.sdl
+	buildname=SDL
+	;;
+gl|opengl)
+	makefile=Makefile.gl
+	buildname=OpenGL
+	;;
+x11)
+	makefile=Makefile.unix
+	buildname=X11
+	;;
+win32|mingw|directx|dx)
+	makefile=Makefile.mingw
+	buildname=DirectX
+	;;
+*)
+	echo "unrecognized build target: $build" >&2
+	exit 1
+	;;
+esac
+
+echo "Build target: $buildname"
+echo "optimizations: $opt"
+echo "debug symbols: $dbg"
+
+echo "# Makefile for $buildname build" >Makefile
+if $opt; then
+	if `uname -s` = SunOS; then
+		echo 'opt = -fast' >>Makefile
+	else
+		echo 'opt = -O3' >>Makefile
+	fi
+fi
+$dbg && echo 'dbg = -g' >>Makefile
+echo "# $makefile" >>Makefile
+cat $makefile >>Makefile

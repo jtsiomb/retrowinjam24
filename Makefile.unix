@@ -3,8 +3,8 @@ obj = $(src:.c=.o)
 dep = $(src:.c=.d)
 bin = game
 
-#opt = -O3
-dbg = -g
+#opt ?= -O3
+dbg ?= -g
 warn = -pedantic -Wall
 
 CFLAGS = $(warn) $(opt) $(dbg) -Isrc -Isrc/unix -MMD

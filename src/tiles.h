@@ -21,6 +21,7 @@ struct tileset {
 	struct tile *tiles;
 	int num_tiles;
 	struct gfximage *img;
+	int wallheight;
 };
 
 struct tile {

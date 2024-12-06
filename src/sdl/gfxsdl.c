@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <SDL/SDL.h>
 #include "gfx.h"
 #include "game.h"
@@ -23,6 +24,8 @@ static struct gfxmode *nextvm;
 static SDL_Surface *fbsurf;
 static struct imgdata fbdata;
 static int fullscreen;
+
+int fbscale = 1;
 
 #define SURF_FLAGS	(SDL_HWSURFACE | SDL_HWPALETTE | SDL_DOUBLEBUF)
 
@@ -153,9 +156,20 @@ int gfx_setup(int xsz, int ysz, int bpp, unsigned int flags)
 			fprintf(stderr, "failed to set video mode\n");
 			return -1;
 		}
+		fbscale = 1;
 
 	} else {
-		if(!(fbsurf = SDL_SetVideoMode(xsz, ysz, bpp, SURF_FLAGS))) {
+		char *env;
+		if((env = getenv("FBSCALE"))) {
+			if((fbscale = atoi(env)) < 1 || fbscale > 8) {
+				fprintf(stderr, "ignoring absurd FBSCALE (%d)\n", fbscale);
+				fbscale = 1;
+			} else {
+				printf("FBSCALE: %d\n", fbscale);
+			}
+		}
+
+		if(!(fbsurf = SDL_SetVideoMode(xsz * fbscale, ysz * fbscale, bpp, SURF_FLAGS))) {
 			fprintf(stderr, "failed to initialize graphics\n");
 			return -1;
 		}
@@ -356,8 +370,53 @@ void gfx_blitkey(struct gfximage *dest, int x, int y, struct gfximage *src, stru
 	gfx_blit(dest, x, y, src, srect);
 }
 
+static void scale_scanline(unsigned char *dest, unsigned char *src, int width)
+{
+	int i;
+
+	for(i=0; i<width; i++) {
+		unsigned char col = *src++;
+
+		switch(fbscale) {
+		case 8: *dest++ = col;
+		case 7: *dest++ = col;
+		case 6: *dest++ = col;
+		case 5: *dest++ = col;
+		case 4: *dest++ = col;
+		case 3: *dest++ = col;
+		case 2: *dest++ = col;
+		case 1: *dest++ = col;
+		default:
+			break;
+		}
+	}
+}
+
 void gfx_swapbuffers(int vsync)
 {
+	if(fbscale > 1) {
+		int i, j;
+		unsigned char *dest, *src;
+
+		if(SDL_MUSTLOCK(fbsurf)) {
+			SDL_LockSurface(fbsurf);
+		}
+
+		dest = (unsigned char*)fbsurf->pixels + (fbsurf->h - 1) * fbsurf->pitch;
+		src = (unsigned char*)fbsurf->pixels + (gfx_back->height - 1) * fbsurf->pitch;
+
+		for(i=0; i<gfx_back->height; i++) {
+			for(j=0; j<fbscale; j++) {
+				scale_scanline(dest, src, gfx_back->width);
+				dest -= fbsurf->pitch;
+			}
+			src -= fbsurf->pitch;
+		}
+
+		if(SDL_MUSTLOCK(fbsurf)) {
+			SDL_UnlockSurface(fbsurf);
+		}
+	}
 	SDL_Flip(fbsurf);
 }
 

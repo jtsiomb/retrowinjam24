@@ -3,8 +3,8 @@ obj = $(src:.c=.o)
 dep = $(src:.c=.d)
 bin = sdlgame
 
-#opt = -O3
-dbg = -g
+#opt ?= -O3
+dbg ?= -g
 warn = -pedantic -Wall
 
 incdir = -Isrc -Isrc/sdl -Ilibs/imago/src

@@ -54,6 +54,8 @@ int load_tileset(struct tileset *tset, const char *fname)
 	gfx_imgkey(tset->img, ts_get_attr_int(tsroot, "colorkey", 0));
 	tset->name = strdup(ts_get_attr_str(tsroot, "name", "unknown"));
 
+	tset->wallheight = ts_get_attr_int(tsroot, "wallheight", 0);
+
 	if((vec = ts_get_attr_vec(tsroot, "defsize", 0))) {
 		defsize[0] = vec[0];
 		defsize[1] = vec[1];

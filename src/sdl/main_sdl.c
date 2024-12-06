@@ -4,16 +4,17 @@
 #include "options.h"
 #include "logger.h"
 
+extern int fbscale;
+
 unsigned long time_msec;
 static unsigned long start_time;
 
-static int win_width, win_height;
 static int quit;
 
 static void handle_event(SDL_Event *ev);
 static int translate_sdlkey(SDLKey sym);
 
-static const char *wintext = "win32 retro jam 2024 (cross-platform version)";
+static const char *wintext = "win32 retro jam 2024 (cross-platform SDL build)";
 
 
 int main(int argc, char **argv)
@@ -84,13 +85,13 @@ static void handle_event(SDL_Event *ev)
 		break;
 
 	case SDL_MOUSEMOTION:
-		game_mousemove(ev->motion.x, ev->motion.y);
+		game_mousemove(ev->motion.x / fbscale, ev->motion.y / fbscale);
 		break;
 
 	case SDL_MOUSEBUTTONDOWN:
 	case SDL_MOUSEBUTTONUP:
 		game_mousebtn(ev->button.button - SDL_BUTTON_LEFT, ev->button.state,
-				ev->button.x, ev->button.y);
+				ev->button.x / fbscale, ev->button.y / fbscale);
 		break;
 
 	default:
