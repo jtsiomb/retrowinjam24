@@ -231,11 +231,11 @@ static void edkeyb(int key, int press)
 		}
 		break;
 
-	case KEY_PGUP:
+	case ']':
 		sz = dynarr_size(typetiles[cur_brush_type]);
 		brush[cur_brush_type] = (brush[cur_brush_type] + 1) % sz;
 		break;
-	case KEY_PGDN:
+	case '[':
 		sz = dynarr_size(typetiles[cur_brush_type]);
 		brush[cur_brush_type] = (brush[cur_brush_type] - 1 + sz) % sz;
 		break;
