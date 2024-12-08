@@ -6,7 +6,11 @@
 
 /* levelcell flags */
 enum {
-	CELL_WALK	= 1
+	CELL_WALK	= 1,
+	CELL_EXIT_N	= 0x100,
+	CELL_EXIT_W = 0x200,
+	CELL_EXIT_S = 0x400,
+	CELL_EXIT_E = 0x800
 };
 
 typedef struct vec2i {

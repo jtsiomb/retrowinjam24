@@ -5,6 +5,8 @@
 #ifndef DYNARR_H_
 #define DYNARR_H_
 
+#include <stdlib.h>
+
 /* usage example:
  * -------------
  * int *arr = dynarr_alloc(0, sizeof *arr);
@@ -76,5 +78,15 @@ void *dynarr_finalize(void *da);
 		(da) = dynarr_push((da), &cnull); \
 	} while(0)
 
+/* never-fail versions of dynarr calls */
+void *dynarr_alloc_ordie(int nelem, int sz);
+#define dynarr_resize_ordie(da, n) \
+	do { if(!((da) = dynarr_resize((da), (n)))) abort(); } while(0)
+#define dynarr_clear_ordie(da) \
+	do { if(!((da) = dynarr_clear(da))) abort(); } while(0)
+#define dynarr_push_ordie(da, item) \
+	do { if(!((da) = dynarr_push((da), (item)))) abort(); } while(0)
+#define dynarr_pop_ordie(da) \
+	do { if(!((da) = dynarr_pop(da))) abort(); } while(0)
 
 #endif	/* DYNARR_H_ */

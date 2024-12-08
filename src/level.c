@@ -247,7 +247,7 @@ static int proc_map(struct level *lvl)
 				break;
 
 			case TILE_SOLID:
-				cell->ftile = pick_tile(lvl->tset, TILE_SOLID);
+				cell->ftile = 0;/*pick_tile(lvl->tset, TILE_SOLID);*/
 				break;
 
 			default:

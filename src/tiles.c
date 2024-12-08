@@ -118,18 +118,31 @@ int find_tile_id(struct tileset *tset, const char *name)
 
 int pick_tile(struct tileset *tset, enum tiletype type)
 {
-	unsigned int i, pick, cdf, num = 0;
+	unsigned int i, pick, prio, cdf, num = 0;
+	int allprio;
 	struct {int tid, cdf;} *pool = alloca(tset->num_tiles * sizeof *pool);
 
 	for(i=0; i<tset->num_tiles; i++) {
 		if(tset->tiles[i].type == type) {
+			prio = tset->tiles[i].pickprio;
+			if(num == 0) {
+				allprio = prio;
+			} else if(allprio >= 0 && prio != allprio) {
+				allprio = -1;
+			}
 			pool[num].tid = i;
-			pool[num].cdf = (num ? pool[num - 1].cdf : 0) + tset->tiles[i].pickprio;
+			pool[num].cdf = (num ? pool[num - 1].cdf : 0) + prio;
 			num++;
 		}
 	}
 
 	if(!num) return -1;
+	if(num == 1) return pool[0].tid;
+
+	if(allprio >= 0) {
+		/* all tiles have equal priority, uniform distribution */
+		return pool[rand() % num].tid;
+	}
 
 	pick = rand() & 0xffff;
 

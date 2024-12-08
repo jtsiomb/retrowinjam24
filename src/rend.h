@@ -5,13 +5,16 @@
 
 enum {
 	REND_SHADE = 1,
-	REND_HOVER = 2
+	REND_HOVER = 2,
+	REND_SOLID = 4
 };
 
 struct renderstate {
 	unsigned int flags;
 	vec2i pan, pan_min, pan_max;
 	vec2i hovertile;
+
+	int empty_tile;		/* which tile id to use for empty cells */
 
 	int stat_nblits, stat_ntiles;
 };

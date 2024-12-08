@@ -60,7 +60,8 @@ windowed:
 		int val = i << 4;
 		gfx_setcolor(i + 240, val, val, val);
 	}
-
+	gfx_setcolor(0, 0, 0, 0);
+	gfx_setcolor(255, 0xff, 0xff, 0xff);
 
 	if(init_leveled() == -1) return -1;
 	start_screen(screens[0]);

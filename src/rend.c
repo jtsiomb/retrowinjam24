@@ -10,6 +10,7 @@ void render_init(void)
 {
 	memset(&rend, 0, sizeof rend);
 
+	rend.flags = REND_SOLID | REND_SHADE;
 	reset_view();
 }
 
@@ -65,7 +66,12 @@ void render_view(void)
 			}
 
 			tid = cell->ftile > 0 ? cell->ftile : 0;
-			y = lvl.tset->tiles[tid].type == TILE_SOLID ? y1 - lvl.tset->wallheight : y1;
+			if(!tid) tid = rend.empty_tile;
+			if(lvl.tset->tiles[tid].type == TILE_SOLID) {
+				y = y1 - lvl.tset->wallheight;
+			} else {
+				y = y1;
+			}
 			if(y < YRES + TILE_YSZ) {
 				blit_tile(gfx_back, x0, y, lvl.tset, tid);
 				rend.stat_nblits++;

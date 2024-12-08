@@ -31,6 +31,15 @@ void *dynarr_alloc(int elem, int szelem)
 	return (char*)desc + sizeof *desc;
 }
 
+void *dynarr_alloc_ordie(int elem, int szelem)
+{
+	void *da;
+	if(!(da = dynarr_alloc(elem, szelem))) {
+		abort();
+	}
+	return da;
+}
+
 void dynarr_free(void *da)
 {
 	if(da) {
