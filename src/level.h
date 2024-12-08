@@ -9,6 +9,10 @@ enum {
 	CELL_WALK	= 1
 };
 
+typedef struct vec2i {
+	int x, y;
+} vec2i;
+
 struct levelcell {
 	unsigned int flags;
 	int ftile, wtile[2];	/* floor and wall tiles -1 for none */
@@ -21,7 +25,7 @@ struct level {
 	int size;			/* size x size level (keep size pow2) */
 	int shift;			/* shift needed to multiply by size */
 
-	int spawnx, spawny;
+	vec2i spawn;
 
 	struct levelcell *cell;		/* linear size x size array of cells */
 };

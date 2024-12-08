@@ -3,6 +3,7 @@
 #include "level.h"
 #include "screen.h"
 #include "font.h"
+#include "rend.h"
 
 #define TILE_HALF_YSZ	(TILE_YSZ >> 1)
 
@@ -15,9 +16,6 @@ static void edkeyb(int key, int press);
 static void edbutton(int bn, int st, int x, int y);
 static void edmotion(int x, int y);
 
-static void reset_view(void);
-static void pan_view(int dx, int dy);
-
 static struct screen edscreen = {
 	"leveled",
 	edstart,
@@ -29,7 +27,6 @@ static struct screen edscreen = {
 };
 
 static int mouse_x, mouse_y;
-static int pan_x, pan_y, pan_min_x, pan_max_x, pan_max_y;
 
 int init_leveled(void)
 {
@@ -61,7 +58,8 @@ static int edstart(void)
 
 	gfx_imgdebug(tset->img);
 
-	reset_view();
+	render_init();
+	rend.flags = REND_HOVER;
 
 	for(i=0; i<tset->img->ncolors; i++) {
 		pal[i].r = tset->img->cmap[i].r;
@@ -110,55 +108,12 @@ static int edupdate(void)
 	return 1;
 }
 
-static int frmstat_nblits, frmstat_ntiles;
-
 static void eddraw(void)
 {
-	int i, j, x, y, x0, y0, x1, y1, tid, hoverx, hovery;
-	struct levelcell *cell;
-
-	frmstat_nblits = frmstat_ntiles = 0;
-
 	edupdate();
+	vscr_to_cell(mouse_x + rend.pan.x, mouse_y + rend.pan.y, &rend.hovertile.x, &rend.hovertile.y);
 
-	vscr_to_cell(mouse_x + pan_x, mouse_y + pan_y, &hoverx, &hovery);
-
-	for(i=0; i<lvl.size; i++) {
-		for(j=0; j<lvl.size; j++) {
-			cell_to_vscr(j, i, &x, &y);
-			x -= pan_x;
-			y -= pan_y;
-			x0 = x - TILE_XSZ / 2;
-			x1 = x + TILE_XSZ / 2;
-			y0 = y;
-			y1 = y + TILE_YSZ;
-
-			if(x0 >= XRES || x1 < 0 || y0 >= YRES + 96 || y1 < 0) continue;
-
-			frmstat_ntiles++;
-
-			cell = get_levelcell(&lvl, j, i);
-			if(cell->wtile[0] > 0) {
-				blit_tile(gfx_back, x0, y0 + TILE_YSZ / 2, lvl.tset, cell->wtile[0]);
-				frmstat_nblits++;
-			}
-			if(cell->wtile[1] > 0) {
-				blit_tile(gfx_back, x0 + TILE_XSZ / 2, y0 + TILE_YSZ / 2, lvl.tset, cell->wtile[1]);
-				frmstat_nblits++;
-			}
-
-			tid = cell->ftile > 0 ? cell->ftile : 0;
-			y = lvl.tset->tiles[tid].type == TILE_SOLID ? y1 - lvl.tset->wallheight : y1;
-			if(y < YRES + TILE_YSZ) {
-				blit_tile(gfx_back, x0, y, lvl.tset, tid);
-				frmstat_nblits++;
-
-				if(j == hoverx && i == hovery) {
-					blit_tile(gfx_back, x0, y1, lvl.tset, 1);
-				}
-			}
-		}
-	}
+	render_view();
 
 	if(showdbg) {
 		char buf[64];
@@ -168,8 +123,8 @@ static void eddraw(void)
 		fdr.colorbase = 240;
 		fdr.colorshift = 4;
 		fnt_position(&fdr, 0, 20);
-		sprintf(buf, "tiles: %d/%d (%d blits)", frmstat_ntiles, lvl.size << lvl.shift,
-				frmstat_nblits);
+		sprintf(buf, "tiles: %d/%d (%d blits)", rend.stat_ntiles, lvl.size << lvl.shift,
+				rend.stat_nblits);
 		fnt_drawstr(fnt, &fdr, buf);
 		gfx_imgend(gfx_back);
 	}
@@ -234,23 +189,4 @@ static void edmotion(int x, int y)
 	if(bnstate[1]) {
 		pan_view(-dx, -dy);
 	}
-}
-
-static void reset_view(void)
-{
-	pan_x = pan_y = 0;
-	pan_max_x = lvl.size * TILE_XSZ / 2 - XRES;
-	pan_min_x = -(lvl.size * TILE_XSZ / 2);
-	pan_max_y = lvl.size * TILE_YSZ - YRES;
-}
-
-static void pan_view(int dx, int dy)
-{
-	pan_x += dx;
-	pan_y += dy;
-
-	if(pan_y < 0) pan_y = 0;
-	if(pan_y >= pan_max_y) pan_y = pan_max_y - 1;
-	if(pan_x < pan_min_x) pan_x = pan_min_x;
-	if(pan_x >= pan_max_x) pan_x = pan_max_x - 1;
 }

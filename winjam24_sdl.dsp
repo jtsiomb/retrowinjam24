@@ -164,6 +164,14 @@ SOURCE=.\src\options.h
 # End Source File
 # Begin Source File
 
+SOURCE=.\src\rend.c
+# End Source File
+# Begin Source File
+
+SOURCE=.\src\rend.h
+# End Source File
+# Begin Source File
+
 SOURCE=.\src\screen.c
 # End Source File
 # Begin Source File

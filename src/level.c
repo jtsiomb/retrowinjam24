@@ -163,8 +163,8 @@ static int read_map(struct level *lvl, struct ts_node *tsn)
 						tid = TILE_SOLID;
 						break;
 					case 'p':
-						lvl->spawnx = i;
-						lvl->spawny = rowcount;
+						lvl->spawn.x = i;
+						lvl->spawn.y = rowcount;
 					case ' ':
 						tid = TILE_FLOOR;
 						cell->flags |= CELL_WALK;
