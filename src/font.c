@@ -212,3 +212,18 @@ int fnt_strwidth(struct font *fnt, const char *str)
 	}
 	return width;
 }
+
+static void gen_rle(struct glyph *g)
+{
+	int i, j;
+	unsigned char *sptr, *dptr;
+
+	if(g->rle) return;
+
+	sptr = g->imgptr;
+
+	for(i=0; i<g->height; i++) {
+		for(j=0; j<g->width; j++) {
+		}
+	}
+}
