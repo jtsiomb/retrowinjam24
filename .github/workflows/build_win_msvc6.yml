@@ -43,7 +43,7 @@ jobs:
         nmake -f Makefile.msvc
         copy game.exe winjam24-win32-msvc
 
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: winjam24-win32-msvc
         path: winjam24-win32-msvc
