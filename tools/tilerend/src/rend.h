@@ -20,6 +20,7 @@ int rend_init(void);
 void rend_cleanup(void);
 
 void rend_viewport(int x, int y, int width, int height);
+void rend_perspective(float fov, float zfar);
 void rend_ortho(float ysz, float zmin, float zmax);
 void rend_view(float *xform);
 

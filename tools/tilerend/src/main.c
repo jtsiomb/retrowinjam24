@@ -19,6 +19,15 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
+	if(!infname) {
+		fprintf(stderr, "you need to specify a mesh file to load\n");
+		return 1;
+	}
+	if(init_scene(&scn) == -1 || load_scene(&scn, infname) == -1) {
+		return 1;
+	}
+	dump_scene(&scn, "foo.obj");
+
 	cgm_midentity(view_xform);
 
 	rend_init();
@@ -30,8 +39,10 @@ int main(int argc, char **argv)
 	}
 	rendfb = &fb;
 
-	rend_viewport(0, 0, 128, 64);
-	rend_ortho(4, -100, 100);
+	//rend_viewport(0, 0, 128, 64);
+	//rend_ortho(4, -100, 100);
+	rend_viewport(0, 0, 256, 256);
+	rend_perspective(cgm_deg_to_rad(60), 100.0f);
 	rend_view(view_xform);
 
 	render(&scn);

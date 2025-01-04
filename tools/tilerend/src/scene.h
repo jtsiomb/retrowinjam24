@@ -18,7 +18,7 @@ struct aabox {
 };
 
 struct vertex {
-	cgm_vec3 pos, norm;
+	cgm_vec3 pos, norm, tang;
 	cgm_vec2 uv;
 };
 
@@ -28,10 +28,15 @@ struct meshtri {
 };
 
 struct mesh {
+	char *name;
+
 	struct meshtri *faces;
 	int nfaces;
 
 	struct material *mtl;
+
+	struct aabox aabb;
+	float xform[16], inv_xform[16];
 };
 
 struct scene {
@@ -46,14 +51,19 @@ struct rayhit {
 	struct meshtri *face;
 	cgm_vec3 bary;
 
-	cgm_vec3 pos, norm;
+	cgm_vec3 pos, norm, tang;
 	cgm_vec2 uv;
 };
 
+int init_scene(struct scene *scn);
+void destroy_scene(struct scene *scn);
+
 void free_material(struct material *mtl);
+void init_mesh(struct mesh *mesh);
 void free_mesh(struct mesh *mesh);
 
 int load_scene(struct scene *scn, const char *fname);
+int dump_scene(struct scene *scn, const char *fname);
 
 void add_mesh(struct scene *scn, struct mesh *mesh);
 void add_material(struct scene *scn, struct material *mtl);
