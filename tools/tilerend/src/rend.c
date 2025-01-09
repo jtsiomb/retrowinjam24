@@ -67,6 +67,8 @@ void render(struct scene *scn)
 	cgm_vec4 color;
 	cgm_vec4 *pixels = rendfb->pixels;
 
+	printf("rendering ...\n");
+
 	for(i=0; i<vp.height; i++) {
 		for(j=0; j<vp.width; j++) {
 			dbgpixel = (i == vp.height/2 && j == vp.width/2);

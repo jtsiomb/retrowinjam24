@@ -41,8 +41,8 @@ int main(int argc, char **argv)
 
 	//rend_viewport(0, 0, 128, 64);
 	//rend_ortho(4, -100, 100);
-	rend_viewport(0, 0, 256, 256);
-	rend_perspective(cgm_deg_to_rad(60), 100.0f);
+	rend_viewport(0, 0, 512, 512);
+	rend_perspective(cgm_deg_to_rad(50), 50.0f);
 	rend_view(view_xform);
 
 	render(&scn);

@@ -25,6 +25,7 @@ struct vertex {
 struct meshtri {
 	struct vertex v[3];
 	cgm_vec3 norm;
+	struct material *mtl;
 };
 
 struct mesh {
@@ -39,9 +40,17 @@ struct mesh {
 	float xform[16], inv_xform[16];
 };
 
+struct octnode {
+	struct meshtri *faces;
+	struct aabox box;
+	struct octnode *sub[8];
+};
+
 struct scene {
 	struct mesh **meshes;
 	struct material **mtl;
+
+	struct octnode *octree;
 };
 
 struct rayhit {
@@ -77,5 +86,8 @@ int ray_mesh(struct mesh *mesh, cgm_ray *ray, struct rayhit *hit);
 int ray_triangle(struct meshtri *tri, cgm_ray *ray, struct rayhit *hit);
 
 int ray_aabb(struct aabox *box, cgm_ray *ray);
+
+int build_octree(struct scene *scn);
+void free_octree(struct octnode *tree);
 
 #endif /* SCENE_H_ */

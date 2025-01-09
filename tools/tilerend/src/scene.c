@@ -1,10 +1,19 @@
 #include <stdio.h>
+#include <limits.h>
+#include <float.h>
+#include <assert.h>
 #include "scene.h"
 #include "rend.h"
-#include <float.h>
 #include "dynarr.h"
 #include "meshfile.h"
 #include "imago2.h"
+
+#define OCT_SPLITCNT	32
+#define OCT_MAXDEPTH	6
+
+
+static void print_octstats(struct scene *scn);
+int aabox_tri_test(const struct aabox *box, const struct meshtri *tri);
 
 int init_scene(struct scene *scn)
 {
@@ -32,6 +41,8 @@ void destroy_scene(struct scene *scn)
 		free_material(scn->mtl[i]);
 	}
 	dynarr_free(scn->mtl);
+
+	free_octree(scn->octree);
 }
 
 void free_material(struct material *mtl)
@@ -72,6 +83,8 @@ int load_scene(struct scene *scn, const char *fname)
 	cgm_vec3 va, vb;
 	static const cgm_vec3 defnorm = {0, 1, 0};
 	static const cgm_vec2 defuv;
+
+	printf("loading: %s ...\n", fname);
 
 	if(!(mf = mf_alloc()) || mf_load(mf, fname) == -1) {
 		fprintf(stderr, "load_scene: failed to load: %s\n", fname);
@@ -127,6 +140,7 @@ int load_scene(struct scene *scn, const char *fname)
 
 		for(j=0; j<mfm->num_faces; j++) {
 			struct meshtri *tri = mesh->faces + j;
+			tri->mtl = mesh->mtl;
 
 			for(k=0; k<3; k++) {
 				int vidx = mfm->faces[j].vidx[k];
@@ -149,6 +163,10 @@ int load_scene(struct scene *scn, const char *fname)
 	}
 
 	mf_free(mf);
+
+	printf("building octree ...\n");
+	build_octree(scn);
+	print_octstats(scn);
 	return 0;
 
 err:
@@ -341,6 +359,7 @@ int ray_mesh(struct mesh *mesh, cgm_ray *ray, struct rayhit *hit)
 
 	if(nearest.face) {
 		*hit = nearest;
+		hit->mesh = mesh;
 		return 1;
 	}
 	return 0;
@@ -388,7 +407,6 @@ int ray_triangle(struct meshtri *tri, cgm_ray *ray, struct rayhit *hit)
 }
 */
 
-extern int dbgpixel;
 int ray_triangle(struct meshtri *tri, cgm_ray *ray, struct rayhit *hit)
 {
 	float t, ndotdir;
@@ -446,4 +464,286 @@ int ray_aabb(struct aabox *box, cgm_ray *ray)
 	SLABCHECK(z);
 
 	return 1;
+}
+
+static int build_octree_rec(struct octnode *oct, int depth);
+static void init_aabox(struct aabox *box);
+static void expand_aabox(struct aabox *box, const cgm_vec3 *pt);
+
+int build_octree(struct scene *scn)
+{
+	int i, j, k, nmeshes;
+	struct octnode *root;
+
+	if(!(root = calloc(1, sizeof *root))) {
+		fprintf(stderr, "failed to allocate octree root node\n");
+		return -1;
+	}
+	root->faces = dynarr_alloc_ordie(0, sizeof *root->faces);
+
+	init_aabox(&root->box);
+
+	nmeshes = dynarr_size(scn->meshes);
+	for(i=0; i<nmeshes; i++) {
+		struct mesh *mesh = scn->meshes[i];
+		for(j=0; j<mesh->nfaces; j++) {
+			struct meshtri tri = mesh->faces[j];
+			tri.mtl = mesh->mtl;
+
+			for(k=0; k<3; k++) {
+				cgm_vmul_m4v3(&tri.v[k].pos, mesh->xform);
+				cgm_vmul_m3v3(&tri.v[k].norm, mesh->xform);
+				cgm_vmul_m3v3(&tri.v[k].tang, mesh->xform);
+
+				expand_aabox(&root->box, &tri.v[k].pos);
+			}
+
+			dynarr_push_ordie(root->faces, &tri);
+		}
+	}
+
+	scn->octree = root;
+
+	return build_octree_rec(root, 0);
+}
+
+static int build_octree_rec(struct octnode *oct, int depth)
+{
+	int i, j, count;
+	struct aabox *box;
+	struct octnode *node;
+	float midx, midy, midz;
+
+	if(dynarr_size(oct->faces) < OCT_SPLITCNT || depth >= OCT_MAXDEPTH) {
+		return 0;
+	}
+
+	midx = (oct->box.vmin.x + oct->box.vmax.x) * 0.5f;
+	midy = (oct->box.vmin.y + oct->box.vmax.y) * 0.5f;
+	midz = (oct->box.vmin.z + oct->box.vmax.z) * 0.5f;
+
+	count = dynarr_size(oct->faces);
+	for(i=0; i<8; i++) {
+		if(!(node = calloc(1, sizeof *node))) {
+			fprintf(stderr, "build_octree: failed to allocate node\n");
+			while(--i >= 0) free_octree(oct->sub[i]);
+			return -1;
+		}
+		oct->sub[i] = node;
+		box = &node->box;
+
+		if(!(node->faces = dynarr_alloc(0, sizeof *node->faces))) {
+			fprintf(stderr, "build_octree: failed to allocate face list\n");
+			do free_octree(oct->sub[i]); while(--i >= 0);
+			return -1;
+		}
+
+		if(i & 4) {
+			box->vmin.x = midx;
+			box->vmax.x = oct->box.vmax.x;
+		} else {
+			box->vmin.x = oct->box.vmin.x;
+			box->vmax.x = midx;
+		}
+		if(i & 2) {
+			box->vmin.y = midy;
+			box->vmax.y = oct->box.vmax.y;
+		} else {
+			box->vmin.y = oct->box.vmin.y;
+			box->vmax.y = midy;
+		}
+		if(i & 1) {
+			box->vmin.z = midz;
+			box->vmax.z = oct->box.vmax.z;
+		} else {
+			box->vmin.z = oct->box.vmin.z;
+			box->vmax.z = midz;
+		}
+
+		for(j=0; j<count; j++) {
+			if(aabox_tri_test(box, oct->faces + j)) {
+				dynarr_push_ordie(node->faces, oct->faces + j);
+			}
+		}
+	}
+
+	dynarr_free(oct->faces);
+	oct->faces = 0;
+
+	for(i=0; i<8; i++) {
+		if(build_octree_rec(oct->sub[i], depth + 1) == -1) {
+			return -1;
+		}
+	}
+	return 0;
+}
+
+struct octstats {
+	int min_faces, max_faces;
+	int height;
+};
+
+static void get_octstats(struct octnode *n, struct octstats *s, int h)
+{
+	int i;
+
+	if(h > s->height) {
+		s->height = h;
+	}
+
+	if(n->faces) {
+		int nfaces = dynarr_size(n->faces);
+		if(nfaces > 0 && nfaces < s->min_faces) {
+			s->min_faces = nfaces;
+		}
+		if(nfaces > s->max_faces) {
+			s->max_faces = nfaces;
+		}
+		assert(!n->sub[0] && !n->sub[1] && !n->sub[2] && !n->sub[3]);
+		assert(!n->sub[4] && !n->sub[5] && !n->sub[6] && !n->sub[7]);
+		return;
+	}
+
+	for(i=0; i<8; i++) {
+		get_octstats(n->sub[i], s, h + 1);
+	}
+}
+
+static void print_octstats(struct scene *scn)
+{
+	struct octstats st = {INT_MAX, 0, 0};
+
+	if(!scn->octree) {
+		printf("no octree\n");
+		return;
+	}
+
+	get_octstats(scn->octree, &st, 1);
+
+	printf("octree stats\n------------\n");
+	printf(" height: %d\n", st.height);
+	printf(" least faces: %d\n", st.min_faces);
+	printf(" most faces: %d\n", st.max_faces);
+}
+
+static void init_aabox(struct aabox *box)
+{
+	box->vmin.x = box->vmin.y = box->vmin.z = FLT_MAX;
+	box->vmax.x = box->vmax.y = box->vmax.z = -FLT_MAX;
+}
+
+static void expand_aabox(struct aabox *box, const cgm_vec3 *pt)
+{
+	if(pt->x < box->vmin.x) box->vmin.x = pt->x;
+	if(pt->y < box->vmin.y) box->vmin.y = pt->y;
+	if(pt->z < box->vmin.z) box->vmin.z = pt->z;
+	if(pt->x > box->vmax.x) box->vmax.x = pt->x;
+	if(pt->y > box->vmax.y) box->vmax.y = pt->y;
+	if(pt->z > box->vmax.z) box->vmax.z = pt->z;
+}
+
+
+/* aabox/plane intersection test taken from "Realtime Collision Detection" by
+ * Christer Ericson. ch.5.2.3, p.164.
+ */
+int aabox_plane_test(const struct aabox *box, const cgm_vec4 *plane)
+{
+	cgm_vec3 c, e;
+	float r, s;
+
+	/* compute aabox center/extents */
+	c.x = (box->vmin.x + box->vmax.x) * 0.5f;
+	c.y = (box->vmin.y + box->vmax.y) * 0.5f;
+	c.z = (box->vmin.z + box->vmax.z) * 0.5f;
+	e = box->vmax; cgm_vsub(&e, &c);
+
+	/* compute the projection interval radius of box onto L(t) = c + norm * t */
+	r = e.x * fabs(plane->x) + e.y * fabs(plane->y) + e.z * fabs(plane->z);
+	/* compute distance of box center from plane */
+	s = cgm_vdot((cgm_vec3*)&plane, &c) - plane->w;
+	/* intersects if distance s in [-r, r] */
+	return fabs(s) <= r;
+}
+
+static inline float fltmin(float a, float b) { return a < b ? a : b; }
+static inline float fltmax(float a, float b) { return a > b ? a : b; }
+#define fltmin3(a, b, c)	fltmin(fltmin(a, b), c)
+#define fltmax3(a, b, c)	fltmax(fltmax(a, b), c)
+
+/* aabox/triangle intersection test based on algorithm from
+ * "Realtime Collision Detection" by Christer Ericson. ch.5.2.9, p.171.
+ */
+int aabox_tri_test(const struct aabox *box, const struct meshtri *tri)
+{
+	int i, j;
+	float p0, p1, p2, r, e0, e1, e2, minp, maxp;
+	cgm_vec3 c, v0, v1, v2, f[3];
+	cgm_vec3 ax;
+	cgm_vec4 plane;
+	static const cgm_vec3 bax[] = {{1, 0, 0}, {0, 1, 0}, {0, 0, 1}};
+
+	/* compute aabox center/extents */
+	c.x = (box->vmin.x + box->vmax.x) * 0.5f;
+	c.y = (box->vmin.y + box->vmax.y) * 0.5f;
+	c.z = (box->vmin.z + box->vmax.z) * 0.5f;
+	e0 = (box->vmax.x - box->vmin.x) * 0.5f;
+	e1 = (box->vmax.y - box->vmin.y) * 0.5f;
+	e2 = (box->vmax.z - box->vmin.z) * 0.5f;
+
+	/* translate triangle to the coordinate system of the bounding box */
+	v0 = tri->v[0].pos; cgm_vsub(&v0, &c);
+	v1 = tri->v[1].pos; cgm_vsub(&v1, &c);
+	v2 = tri->v[2].pos; cgm_vsub(&v2, &c);
+
+	/* my own addition: this seems to fail sometimes when the triangle is
+	 * entirely inside the aabox. let's add a hack to catch that...
+	 */
+	if(fabs(v0.x) <= e0 && fabs(v0.y) <= e1 && fabs(v0.z) <= e2) return 1;
+	if(fabs(v1.x) <= e0 && fabs(v1.y) <= e1 && fabs(v1.z) <= e2) return 1;
+	if(fabs(v2.x) <= e0 && fabs(v2.y) <= e1 && fabs(v2.z) <= e2) return 1;
+
+	/* compute edge vectors for triangle */
+	f[0] = v1; cgm_vsub(f, &v0);
+	f[1] = v2; cgm_vsub(f + 1, &v1);
+	f[2] = v0; cgm_vsub(f + 2, &v2);
+
+	/* test axes a00..a22 */
+	for(i=0; i<3; i++) {
+		for(j=0; j<3; j++) {
+			cgm_vcross(&ax, bax + i, f + j);
+			p0 = cgm_vdot(&v0, &ax);
+			p1 = cgm_vdot(&v1, &ax);
+			p2 = cgm_vdot(&v2, &ax);
+			r = e0 * fabs(cgm_vdot(f, &ax)) + e1 * fabs(cgm_vdot(f + 1, &ax)) +
+				e2 * fabs(cgm_vdot(f + 2, &ax));
+
+			minp = fltmin3(p0, p1, p2);
+			maxp = fltmax3(p0, p1, p2);
+
+			if(minp > r || maxp < -r) return 0;		/* found separating axis */
+		}
+	}
+
+	if(fltmax3(v0.x, v1.x, v2.x) < -e0 || fltmin3(v0.x, v1.x, v2.x) > e0) return 0;
+	if(fltmax3(v0.y, v1.y, v2.y) < -e1 || fltmin3(v0.y, v1.y, v2.y) > e1) return 0;
+	if(fltmax3(v0.z, v1.z, v2.z) < -e2 || fltmin3(v0.z, v1.z, v2.z) > e2) return 0;
+
+	cgm_vcross((cgm_vec3*)&plane, f, f + 1);
+	plane.w = cgm_vdot((cgm_vec3*)&plane, &v0);
+	return aabox_plane_test(box, &plane);
+}
+
+
+void free_octree(struct octnode *tree)
+{
+	int i;
+
+	if(!tree) return;
+
+	if(tree->faces) dynarr_free(tree->faces);
+
+	for(i=0; i<8; i++) {
+		free_octree(tree->sub[i]);
+	}
+	free(tree);
 }
