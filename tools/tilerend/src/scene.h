@@ -2,6 +2,7 @@
 #define SCENE_H_
 
 #include "cgmath/cgmath.h"
+#include "rend.h"
 
 struct rendimage;
 
@@ -55,7 +56,7 @@ struct scene {
 
 struct rayhit {
 	float t;
-	cgm_ray ray;
+	struct ray ray;
 	struct mesh *mesh;
 	struct meshtri *face;
 	cgm_vec3 bary;
@@ -81,11 +82,12 @@ struct material *find_material(struct scene *scn, const char *name);
 
 struct rendimage *load_texture(const char *fname);
 
-int ray_scene(struct scene *scn, cgm_ray *ray, struct rayhit *hit);
-int ray_mesh(struct mesh *mesh, cgm_ray *ray, struct rayhit *hit);
-int ray_triangle(struct meshtri *tri, cgm_ray *ray, struct rayhit *hit);
+int ray_scene(struct scene *scn, struct ray *ray, struct rayhit *hit);
+int ray_octree(struct octnode *oct, struct ray *ray, struct rayhit *hit);
+int ray_mesh(struct mesh *mesh, struct ray *ray, struct rayhit *hit);
+int ray_triangle(struct meshtri *tri, struct ray *ray, struct rayhit *hit);
 
-int ray_aabb(struct aabox *box, cgm_ray *ray);
+int ray_aabb(struct aabox *box, struct ray *ray);
 
 int build_octree(struct scene *scn);
 void free_octree(struct octnode *tree);

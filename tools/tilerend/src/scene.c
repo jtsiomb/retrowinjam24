@@ -9,11 +9,13 @@
 #include "imago2.h"
 
 #define OCT_SPLITCNT	32
-#define OCT_MAXDEPTH	6
+#define OCT_MAXDEPTH	10
 
 
 static void print_octstats(struct scene *scn);
 int aabox_tri_test(const struct aabox *box, const struct meshtri *tri);
+
+static struct material defmtl = {"default", {0.8, 0.2, 0.75}, {0.4, 0.4, 0.4}, 50.0f, 0, 0};
 
 int init_scene(struct scene *scn)
 {
@@ -135,7 +137,9 @@ int load_scene(struct scene *scn, const char *fname)
 		mesh->nfaces = mfm->num_faces;
 
 		if(mfm->mtl) {
-			mesh->mtl = find_material(scn, mfm->mtl->name);
+			if(!(mesh->mtl = find_material(scn, mfm->mtl->name))) {
+				mesh->mtl = &defmtl;
+			}
 		}
 
 		for(j=0; j<mfm->num_faces; j++) {
@@ -232,12 +236,16 @@ int dump_scene(struct scene *scn, const char *fname)
 
 void add_mesh(struct scene *scn, struct mesh *mesh)
 {
-	dynarr_push_ordie(scn->meshes, &mesh);
+	if(!(scn->meshes = dynarr_push(scn->meshes, &mesh))) {
+		abort();
+	}
 }
 
 void add_material(struct scene *scn, struct material *mtl)
 {
-	dynarr_push_ordie(scn->mtl, &mtl);
+	if(!(scn->mtl = dynarr_push(scn->mtl, &mtl))) {
+		abort();
+	}
 }
 
 struct material *find_material(struct scene *scn, const char *name)
@@ -272,12 +280,14 @@ struct rendimage *load_texture(const char *fname)
 	return ri;
 }
 
-static void compute_rayhit(struct rayhit *hit, cgm_ray *ray)
+static void compute_rayhit(struct rayhit *hit, struct ray *ray)
 {
 	struct meshtri *tri = hit->face;
 
 	hit->ray = *ray;
-	cgm_raypos(&hit->pos, ray, hit->t);
+	hit->pos.x = ray->origin.x + ray->dir.x * hit->t;
+	hit->pos.y = ray->origin.y + ray->dir.y * hit->t;
+	hit->pos.z = ray->origin.z + ray->dir.z * hit->t;
 
 	hit->norm.x = tri->v[0].norm.x * hit->bary.x + tri->v[1].norm.x * hit->bary.y +
 		tri->v[2].norm.x * hit->bary.z;
@@ -285,13 +295,17 @@ static void compute_rayhit(struct rayhit *hit, cgm_ray *ray)
 		tri->v[2].norm.y * hit->bary.z;
 	hit->norm.z = tri->v[0].norm.z * hit->bary.x + tri->v[1].norm.z * hit->bary.y +
 		tri->v[2].norm.z * hit->bary.z;
+	cgm_vnormalize(&hit->norm);
 
+	/*
 	hit->tang.x = tri->v[0].tang.x * hit->bary.x + tri->v[1].tang.x * hit->bary.y +
 		tri->v[2].tang.x * hit->bary.z;
 	hit->tang.y = tri->v[0].tang.y * hit->bary.x + tri->v[1].tang.y * hit->bary.y +
 		tri->v[2].tang.y * hit->bary.z;
 	hit->tang.z = tri->v[0].tang.z * hit->bary.x + tri->v[1].tang.z * hit->bary.y +
 		tri->v[2].tang.z * hit->bary.z;
+	cgm_vnormalize(&hit->tang);
+	*/
 
 	hit->uv.x = tri->v[0].uv.x * hit->bary.x + tri->v[1].uv.x * hit->bary.y +
 		tri->v[2].uv.x * hit->bary.z;
@@ -299,11 +313,20 @@ static void compute_rayhit(struct rayhit *hit, cgm_ray *ray)
 		tri->v[2].uv.y * hit->bary.z;
 }
 
-int ray_scene(struct scene *scn, cgm_ray *ray, struct rayhit *hit)
+int ray_scene(struct scene *scn, struct ray *ray, struct rayhit *hit)
 {
 	int i, count;
 	struct rayhit tmphit, nearest = {FLT_MAX};
 
+	if(scn->octree) {
+		if(ray_octree(scn->octree, ray, hit)) {
+			compute_rayhit(hit, ray);
+			return 1;
+		}
+		return 0;
+	}
+
+	/* fallback to brute force */
 	count = dynarr_size(scn->meshes);
 
 	if(!hit) {
@@ -329,14 +352,70 @@ int ray_scene(struct scene *scn, cgm_ray *ray, struct rayhit *hit)
 	return 0;
 }
 
-int ray_mesh(struct mesh *mesh, cgm_ray *ray, struct rayhit *hit)
+int ray_octree(struct octnode *oct, struct ray *ray, struct rayhit *hit)
+{
+	int i, count;
+	struct rayhit tmphit, nearest = {FLT_MAX};
+
+	if(!ray_aabb(&oct->box, ray)) {
+		return 0;
+	}
+
+	if(oct->faces) {
+		/* leaf node, check faces */
+		count = dynarr_size(oct->faces);
+
+		if(!hit) {
+			for(i=0; i<count; i++) {
+				if(ray_triangle(oct->faces + i, ray, 0)) {
+					return 1;
+				}
+			}
+			return 0;
+		}
+
+		for(i=0; i<count; i++) {
+			if(ray_triangle(oct->faces + i, ray, &tmphit) && tmphit.t < nearest.t) {
+				nearest = tmphit;
+			}
+		}
+
+		if(nearest.face) {
+			*hit = nearest;
+			hit->mesh = (void*)1;
+			return 1;
+		}
+		return 0;
+	}
+
+	/* non-leaf, recurse to children */
+	/* TODO order front->back to stop early */
+	for(i=0; i<8; i++) {
+		if(ray_octree(oct->sub[i], ray, &tmphit) && tmphit.t < nearest.t) {
+			nearest = tmphit;
+		}
+	}
+
+	if(nearest.face) {
+		*hit = nearest;
+		hit->mesh = (void*)1;
+		return 1;
+	}
+	return 0;
+}
+
+int ray_mesh(struct mesh *mesh, struct ray *ray, struct rayhit *hit)
 {
 	int i;
-	cgm_ray localray;
+	struct ray localray;
 	struct rayhit tmphit, nearest = {FLT_MAX};
 
 	localray = *ray;
-	cgm_rmul_mr(&localray, mesh->inv_xform);
+	cgm_vmul_m4v3(&localray.origin, mesh->inv_xform);
+	cgm_vmul_m3v3(&localray.dir, mesh->inv_xform);
+	localray.invdir.x = 1.0f / localray.dir.x;
+	localray.invdir.y = 1.0f / localray.dir.y;
+	localray.invdir.z = 1.0f / localray.dir.z;
 
 	if(!ray_aabb(&mesh->aabb, &localray)) {
 		return 0;
@@ -366,48 +445,43 @@ int ray_mesh(struct mesh *mesh, cgm_ray *ray, struct rayhit *hit)
 }
 
 #define EPSILON	1e-6
-/*
-int ray_triangle(struct meshtri *tri, cgm_ray *ray, struct rayhit *hit)
+int ray_triangle(struct meshtri *tri, struct ray *ray, struct rayhit *hit)
 {
-	cgm_vec3 vab, vac, pdir, qvec;
-	float det, inv_det, t, v, w;
+	cgm_vec3 vab, vac, tvec, pvec, qvec;
+	float det, inv_det, u, v;
 
 	vab = tri->v[1].pos; cgm_vsub(&vab, &tri->v[0].pos);
 	vac = tri->v[2].pos; cgm_vsub(&vac, &tri->v[0].pos);
 
-	if((det = -cgm_vdot(&ray->dir, &tri->norm)) < EPSILON && det > -EPSILON) {
+	cgm_vcross(&pvec, &ray->dir, &vac);
+
+	if((det = cgm_vdot(&vab, &pvec)) > -EPSILON && det < EPSILON) {
 		return 0;
 	}
+	inv_det = 1.0f / det;
 
-	//pdir = tri->v[0].pos; cgm_vsub(&pdir, &ray->origin);
-	pdir = ray->origin; cgm_vsub(&pdir, &tri->v[0].pos);
-	if((t = cgm_vdot(&pdir, &tri->norm)) < EPSILON || t >= det) {
-		return 0;
-	}
+	tvec = ray->origin; cgm_vsub(&tvec, &tri->v[0].pos);
 
-	cgm_vcross(&qvec, &ray->dir, &pdir);
-	v = cgm_vdot(&vac, &qvec);
-	if(v < 0.0f || v > det) return 0;
+	u = cgm_vdot(&tvec, &pvec) * inv_det;
+	if(u < 0.0f || u > 1.0f) return 0;
 
-	w = cgm_vdot(&vab, &qvec);
-	if(w < 0.0f || v + w > det) return 0;
+	cgm_vcross(&qvec, &tvec, &vab);
+
+	v = cgm_vdot(&ray->dir, &qvec) * inv_det;
+	if(v < 0.0f || u + v > 1.0f) return 0;
 
 	if(hit) {
-		inv_det = 1.0f / det;
-		v *= inv_det;
-		w *= inv_det;
-
-		hit->t = t * inv_det;
-		hit->bary.x = 1.0f - v - w;
-		hit->bary.y = v;
-		hit->bary.z = w;
+		hit->t = cgm_vdot(&vac, &qvec) * inv_det;
+		hit->bary.x = 1.0f - u - v;
+		hit->bary.y = u;
+		hit->bary.z = v;
 		hit->face = tri;
 	}
 	return 1;
 }
-*/
 
-int ray_triangle(struct meshtri *tri, cgm_ray *ray, struct rayhit *hit)
+/*
+int ray_triangle(struct meshtri *tri, struct ray *ray, struct rayhit *hit)
 {
 	float t, ndotdir;
 	cgm_vec3 vdir, bc, pos;
@@ -423,7 +497,9 @@ int ray_triangle(struct meshtri *tri, cgm_ray *ray, struct rayhit *hit)
 		return 0;
 	}
 
-	cgm_raypos(&pos, ray, t);
+	pos.x = ray->origin.x + ray->dir.x * t;
+	pos.y = ray->origin.y + ray->dir.y * t;
+	pos.z = ray->origin.z + ray->dir.z * t;
 	cgm_bary(&bc, &tri->v[0].pos, &tri->v[1].pos, &tri->v[2].pos, &pos);
 
 	if(bc.x < 0.0f || bc.x > 1.0f) return 0;
@@ -438,26 +514,32 @@ int ray_triangle(struct meshtri *tri, cgm_ray *ray, struct rayhit *hit)
 	}
 	return 1;
 }
+*/
 
 #define SLABCHECK(dim)	\
 	do { \
-		invdir = 1.0f / ray->dir.dim;	\
-		t0 = (box->vmin.dim - ray->origin.dim) * invdir;	\
-		t1 = (box->vmax.dim - ray->origin.dim) * invdir;	\
-		if(invdir < 0.0f) {	\
+		if(ray->dir.dim == 0.0f) { \
+			if(ray->origin.dim < box->vmin.dim || ray->origin.dim > box->vmax.dim) { \
+				return 0; \
+			} \
+		} \
+		t0 = (box->vmin.dim - ray->origin.dim) * ray->invdir.dim;	\
+		t1 = (box->vmax.dim - ray->origin.dim) * ray->invdir.dim;	\
+		if(t1 < t0) {	\
 			tmp = t0;	\
 			t0 = t1;	\
 			t1 = tmp;	\
 		}	\
-		tmin = t0 > tmin ? t0 : tmin;	\
-		tmax = t1 < tmax ? t1 : tmax;	\
+		if(t0 > tmin) tmin = t0; \
+		if(t1 < tmax) tmax = t1; \
 		if(tmax < tmin) return 0; \
+		if(tmax < 0.0f) return 0; \
 	} while(0)
 
-int ray_aabb(struct aabox *box, cgm_ray *ray)
+int ray_aabb(struct aabox *box, struct ray *ray)
 {
-	float invdir, t0, t1, tmp;
-	float tmin = 0.0f, tmax = 1.0f;
+	float t0, t1, tmp;
+	float tmin = -FLT_MAX, tmax = FLT_MAX;
 
 	SLABCHECK(x);
 	SLABCHECK(y);
@@ -479,7 +561,11 @@ int build_octree(struct scene *scn)
 		fprintf(stderr, "failed to allocate octree root node\n");
 		return -1;
 	}
-	root->faces = dynarr_alloc_ordie(0, sizeof *root->faces);
+	if(!(root->faces = dynarr_alloc(0, sizeof *root->faces))) {
+		fprintf(stderr, "failed to allocate octree root faces array\n");
+		free(root);
+		return -1;
+	}
 
 	init_aabox(&root->box);
 
@@ -498,7 +584,9 @@ int build_octree(struct scene *scn)
 				expand_aabox(&root->box, &tri.v[k].pos);
 			}
 
-			dynarr_push_ordie(root->faces, &tri);
+			if(!(root->faces = dynarr_push(root->faces, &tri))) {
+				abort();
+			}
 		}
 	}
 
@@ -562,7 +650,9 @@ static int build_octree_rec(struct octnode *oct, int depth)
 
 		for(j=0; j<count; j++) {
 			if(aabox_tri_test(box, oct->faces + j)) {
-				dynarr_push_ordie(node->faces, oct->faces + j);
+				if(!(node->faces = dynarr_push(node->faces, oct->faces + j))) {
+					abort();
+				}
 			}
 		}
 	}
@@ -643,28 +733,6 @@ static void expand_aabox(struct aabox *box, const cgm_vec3 *pt)
 }
 
 
-/* aabox/plane intersection test taken from "Realtime Collision Detection" by
- * Christer Ericson. ch.5.2.3, p.164.
- */
-int aabox_plane_test(const struct aabox *box, const cgm_vec4 *plane)
-{
-	cgm_vec3 c, e;
-	float r, s;
-
-	/* compute aabox center/extents */
-	c.x = (box->vmin.x + box->vmax.x) * 0.5f;
-	c.y = (box->vmin.y + box->vmax.y) * 0.5f;
-	c.z = (box->vmin.z + box->vmax.z) * 0.5f;
-	e = box->vmax; cgm_vsub(&e, &c);
-
-	/* compute the projection interval radius of box onto L(t) = c + norm * t */
-	r = e.x * fabs(plane->x) + e.y * fabs(plane->y) + e.z * fabs(plane->z);
-	/* compute distance of box center from plane */
-	s = cgm_vdot((cgm_vec3*)&plane, &c) - plane->w;
-	/* intersects if distance s in [-r, r] */
-	return fabs(s) <= r;
-}
-
 static inline float fltmin(float a, float b) { return a < b ? a : b; }
 static inline float fltmax(float a, float b) { return a > b ? a : b; }
 #define fltmin3(a, b, c)	fltmin(fltmin(a, b), c)
@@ -673,13 +741,13 @@ static inline float fltmax(float a, float b) { return a > b ? a : b; }
 /* aabox/triangle intersection test based on algorithm from
  * "Realtime Collision Detection" by Christer Ericson. ch.5.2.9, p.171.
  */
+#if 0
 int aabox_tri_test(const struct aabox *box, const struct meshtri *tri)
 {
 	int i, j;
-	float p0, p1, p2, r, e0, e1, e2, minp, maxp;
+	float p0, p1, p2, r, e0, e1, e2, minp, maxp, pdist, s;
 	cgm_vec3 c, v0, v1, v2, f[3];
-	cgm_vec3 ax;
-	cgm_vec4 plane;
+	cgm_vec3 ax, pnorm;
 	static const cgm_vec3 bax[] = {{1, 0, 0}, {0, 1, 0}, {0, 0, 1}};
 
 	/* compute aabox center/extents */
@@ -714,8 +782,7 @@ int aabox_tri_test(const struct aabox *box, const struct meshtri *tri)
 			p0 = cgm_vdot(&v0, &ax);
 			p1 = cgm_vdot(&v1, &ax);
 			p2 = cgm_vdot(&v2, &ax);
-			r = e0 * fabs(cgm_vdot(f, &ax)) + e1 * fabs(cgm_vdot(f + 1, &ax)) +
-				e2 * fabs(cgm_vdot(f + 2, &ax));
+			r = e0 * fabs(ax.x) + e1 * fabs(ax.y) + e2 * fabs(ax.z);
 
 			minp = fltmin3(p0, p1, p2);
 			maxp = fltmax3(p0, p1, p2);
@@ -728,11 +795,28 @@ int aabox_tri_test(const struct aabox *box, const struct meshtri *tri)
 	if(fltmax3(v0.y, v1.y, v2.y) < -e1 || fltmin3(v0.y, v1.y, v2.y) > e1) return 0;
 	if(fltmax3(v0.z, v1.z, v2.z) < -e2 || fltmin3(v0.z, v1.z, v2.z) > e2) return 0;
 
-	cgm_vcross((cgm_vec3*)&plane, f, f + 1);
-	plane.w = cgm_vdot((cgm_vec3*)&plane, &v0);
-	return aabox_plane_test(box, &plane);
-}
+	cgm_vcross(&pnorm, f, f + 1);
+	pdist = cgm_vdot(&pnorm, &v0);
 
+	r = e0 * fabs(pnorm.x) + e1 * fabs(pnorm.y) + e2 * fabs(pnorm.z);
+	s = cgm_vdot(&pnorm, &c) - pdist;
+	return fabs(s) <= r;
+}
+#endif
+
+int aabox_tri_test(const struct aabox *box, const struct meshtri *tri)
+{
+	struct aabox tribox;
+
+	tribox.vmin = tribox.vmax = tri->v[0].pos;
+	expand_aabox(&tribox, &tri->v[1].pos);
+	expand_aabox(&tribox, &tri->v[2].pos);
+
+	if(tribox.vmin.x > box->vmax.x || tribox.vmax.x < box->vmin.x) return 0;
+	if(tribox.vmin.y > box->vmax.y || tribox.vmax.y < box->vmin.y) return 0;
+	if(tribox.vmin.z > box->vmax.z || tribox.vmax.z < box->vmin.z) return 0;
+	return 1;
+}
 
 void free_octree(struct octnode *tree)
 {

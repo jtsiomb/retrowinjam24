@@ -5,6 +5,10 @@
 
 struct scene;
 
+struct ray {
+	cgm_vec3 origin, dir, invdir;
+};
+
 struct rect {
 	int x, y, width, height;
 };

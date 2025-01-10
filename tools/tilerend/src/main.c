@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/time.h>
 #include "rend.h"
 #include "scene.h"
 #include "cgmath/cgmath.h"
@@ -15,6 +16,8 @@ static int parse_args(int argc, char **argv);
 
 int main(int argc, char **argv)
 {
+	struct timeval tv, tv0;
+
 	if(parse_args(argc, argv) == -1) {
 		return 1;
 	}
@@ -45,7 +48,14 @@ int main(int argc, char **argv)
 	rend_perspective(cgm_deg_to_rad(50), 50.0f);
 	rend_view(view_xform);
 
+	printf("rendering ... "); fflush(stdout);
+	gettimeofday(&tv0, 0);
+
 	render(&scn);
+
+	gettimeofday(&tv, 0);
+
+	printf("%g sec\n", (float)(tv.tv_sec - tv0.tv_sec) + (float)(tv.tv_usec - tv0.tv_usec) / 1000000.0f);
 
 	if(img_save_pixels("output.png", fb.pixels, fb.width, fb.height,IMG_FMT_RGBAF) == -1) {
 		fprintf(stderr, "failed to write output image\n");
