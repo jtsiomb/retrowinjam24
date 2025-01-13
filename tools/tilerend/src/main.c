@@ -29,7 +29,6 @@ int main(int argc, char **argv)
 	if(init_scene(&scn) == -1 || load_scene(&scn, infname) == -1) {
 		return 1;
 	}
-	dump_scene(&scn, "foo.obj");
 
 	cgm_midentity(view_xform);
 
@@ -43,8 +42,8 @@ int main(int argc, char **argv)
 	rendfb = &fb;
 
 	//rend_viewport(0, 0, 128, 64);
-	//rend_ortho(4, -100, 100);
 	rend_viewport(0, 0, 512, 512);
+	//rend_ortho(4, -100, 100);
 	rend_perspective(cgm_deg_to_rad(50), 50.0f);
 	rend_view(view_xform);
 

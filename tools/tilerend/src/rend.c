@@ -135,12 +135,12 @@ static void perspray(struct ray *ray, int x, int y)
 
 static void orthoray(struct ray *ray, int x, int y)
 {
-	ray->origin.x = (((float)x / (float)vp.width) - 0.5f) * orthosz * aspect;
-	ray->origin.y = -(((float)y / (float)vp.height) - 0.5f) * orthosz;
-	ray->origin.z = zmin;
+	ray->origin.x = ((float)x / (float)vp.width - 0.5f) * orthosz * aspect;
+	ray->origin.y = (0.5f - (float)y / (float)vp.height) * orthosz;
+	ray->origin.z = zmax;
 
-	ray->dir.x = ray->dir.z = 0;
-	ray->dir.z = zmax - zmin;
+	ray->dir.x = ray->dir.y = 0;
+	ray->dir.z = zmin - zmax;
 
 	cgm_vmul_m4v3(&ray->origin, view_xform);
 	cgm_vmul_m3v3(&ray->dir, view_xform);
