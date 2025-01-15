@@ -52,6 +52,9 @@ struct scene {
 	struct material **mtl;
 
 	struct octnode *octree;
+
+	cgm_vec3 bsph_cent;
+	float bsph_rad;
 };
 
 struct rayhit {

@@ -5,11 +5,16 @@
 #include "scene.h"
 #include "cgmath/cgmath.h"
 #include "imago2.h"
+#include "tilerend.h"
+#include "script.h"
 
-static struct scene scn;
-static float view_xform[16];
+struct scene scn;
+char *outfname;
+struct rendimage framebuf;
+int tilewidth, tileheight;
+cgm_vec3 viewpos, viewtarg;
+
 static const char *infname;
-static struct rendimage fb;
 
 static int parse_args(int argc, char **argv);
 
@@ -17,46 +22,43 @@ static int parse_args(int argc, char **argv);
 int main(int argc, char **argv)
 {
 	struct timeval tv, tv0;
+	FILE *infile = stdin;
+	char buf[512];
 
 	if(parse_args(argc, argv) == -1) {
 		return 1;
 	}
-
-	if(!infname) {
-		fprintf(stderr, "you need to specify a mesh file to load\n");
-		return 1;
-	}
-	if(init_scene(&scn) == -1 || load_scene(&scn, infname) == -1) {
-		return 1;
+	if(infname) {
+		if(!(infile = fopen(infname, "rb"))) {
+			fprintf(stderr, "failed to open render script: %s\n", infname);
+			return 1;
+		}
 	}
 
-	cgm_midentity(view_xform);
+	/* insane defaults */
+	outfname = strdup("output.png");
+	framebuf.width = framebuf.height = 512;
+	tilewidth = tileheight = 512;
+	cgm_vcons(&viewpos, 0, 0, 0);
+	cgm_vcons(&viewtarg, 0, 0, -1);
 
+	init_scene(&scn);
 	rend_init();
 
-	fb.width = 512;
-	fb.height = 512;
-	if(!(fb.pixels = malloc(fb.width * fb.height * sizeof *fb.pixels))) {
-		abort();
-	}
-	rendfb = &fb;
-
-	//rend_viewport(0, 0, 128, 64);
-	rend_viewport(0, 0, 512, 512);
-	//rend_ortho(4, -100, 100);
-	rend_perspective(cgm_deg_to_rad(50), 50.0f);
-	rend_view(view_xform);
-
-	printf("rendering ... "); fflush(stdout);
 	gettimeofday(&tv0, 0);
 
-	render(&scn);
+	while(fgets(buf, sizeof buf, infile)) {
+		if(parse_cmd(buf) == -1) {
+			return 1;
+		}
+	}
 
 	gettimeofday(&tv, 0);
 
-	printf("%g sec\n", (float)(tv.tv_sec - tv0.tv_sec) + (float)(tv.tv_usec - tv0.tv_usec) / 1000000.0f);
+	printf("total: %g sec\n", (float)(tv.tv_sec - tv0.tv_sec) + (float)(tv.tv_usec - tv0.tv_usec) / 1000000.0f);
 
-	if(img_save_pixels("output.png", fb.pixels, fb.width, fb.height,IMG_FMT_RGBAF) == -1) {
+	printf("writing output: %s\n", outfname);
+	if(img_save_pixels(outfname, framebuf.pixels, framebuf.width, framebuf.height,IMG_FMT_RGBAF) == -1) {
 		fprintf(stderr, "failed to write output image\n");
 		return 1;
 	}

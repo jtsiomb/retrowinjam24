@@ -11,7 +11,10 @@
 #define OCT_SPLITCNT	32
 #define OCT_MAXDEPTH	10
 
-
+static void calc_bounds(struct scene *scn);
+static int build_octree_rec(struct octnode *oct, int depth);
+static void init_aabox(struct aabox *box);
+static void expand_aabox(struct aabox *box, const cgm_vec3 *pt);
 static void print_octstats(struct scene *scn);
 int aabox_tri_test(const struct aabox *box, const struct meshtri *tri);
 
@@ -27,6 +30,7 @@ int init_scene(struct scene *scn)
 		fprintf(stderr, "init_scene: failed to initializes materials dynamic array\n");
 		return -1;
 	}
+	scn->bsph_rad = 1.0f;
 	return 0;
 }
 
@@ -171,6 +175,8 @@ int load_scene(struct scene *scn, const char *fname)
 	printf("building octree ...\n");
 	build_octree(scn);
 	print_octstats(scn);
+
+	calc_bounds(scn);
 	return 0;
 
 err:
@@ -480,42 +486,6 @@ int ray_triangle(struct meshtri *tri, struct ray *ray, struct rayhit *hit)
 	return 1;
 }
 
-/*
-int ray_triangle(struct meshtri *tri, struct ray *ray, struct rayhit *hit)
-{
-	float t, ndotdir;
-	cgm_vec3 vdir, bc, pos;
-
-	if(fabs(ndotdir = cgm_vdot(&ray->dir, &tri->norm)) <= EPSILON) {
-		return 0;
-	}
-
-	vdir = tri->v[0].pos;
-	cgm_vsub(&vdir, &ray->origin);
-
-	if((t = cgm_vdot(&tri->norm, &vdir) / ndotdir) <= EPSILON || t > 1.0f) {
-		return 0;
-	}
-
-	pos.x = ray->origin.x + ray->dir.x * t;
-	pos.y = ray->origin.y + ray->dir.y * t;
-	pos.z = ray->origin.z + ray->dir.z * t;
-	cgm_bary(&bc, &tri->v[0].pos, &tri->v[1].pos, &tri->v[2].pos, &pos);
-
-	if(bc.x < 0.0f || bc.x > 1.0f) return 0;
-	if(bc.y < 0.0f || bc.y > 1.0f) return 0;
-	if(bc.z < 0.0f || bc.z > 1.0f) return 0;
-
-	if(hit) {
-		hit->t = t;
-		hit->bary = bc;
-		hit->face = tri;
-		hit->ray = *ray;
-	}
-	return 1;
-}
-*/
-
 #define SLABCHECK(dim)	\
 	do { \
 		if(ray->dir.dim == 0.0f) { \
@@ -547,10 +517,6 @@ int ray_aabb(struct aabox *box, struct ray *ray)
 
 	return 1;
 }
-
-static int build_octree_rec(struct octnode *oct, int depth);
-static void init_aabox(struct aabox *box);
-static void expand_aabox(struct aabox *box, const cgm_vec3 *pt);
 
 int build_octree(struct scene *scn)
 {
@@ -606,9 +572,9 @@ static int build_octree_rec(struct octnode *oct, int depth)
 		return 0;
 	}
 
-	midx = (oct->box.vmin.x + oct->box.vmax.x) * 0.5f;
-	midy = (oct->box.vmin.y + oct->box.vmax.y) * 0.5f;
-	midz = (oct->box.vmin.z + oct->box.vmax.z) * 0.5f;
+	midx = (oct->box.vmin.x + oct->box.vmax.x) / 2;
+	midy = (oct->box.vmin.y + oct->box.vmax.y) / 2;
+	midz = (oct->box.vmin.z + oct->box.vmax.z) / 2;
 
 	count = dynarr_size(oct->faces);
 	for(i=0; i<8; i++) {
@@ -714,6 +680,14 @@ static void print_octstats(struct scene *scn)
 	printf(" height: %d\n", st.height);
 	printf(" least faces: %d\n", st.min_faces);
 	printf(" most faces: %d\n", st.max_faces);
+	if(scn->octree->sub[0]) {
+		printf(" cx [%g .. %g/%g .. %g]\n", scn->octree->sub[0]->box.vmin.x, scn->octree->sub[0]->box.vmax.x,
+				scn->octree->sub[4]->box.vmin.x, scn->octree->sub[4]->box.vmax.x);
+		printf(" cy [%g .. %g/%g .. %g]\n", scn->octree->sub[0]->box.vmin.y, scn->octree->sub[0]->box.vmax.y,
+				scn->octree->sub[2]->box.vmin.y, scn->octree->sub[2]->box.vmax.y);
+		printf(" cx [%g .. %g/%g .. %g]\n", scn->octree->sub[0]->box.vmin.z, scn->octree->sub[0]->box.vmax.z,
+				scn->octree->sub[1]->box.vmin.z, scn->octree->sub[1]->box.vmax.z);
+	}
 }
 
 static void init_aabox(struct aabox *box)
@@ -830,4 +804,34 @@ void free_octree(struct octnode *tree)
 		free_octree(tree->sub[i]);
 	}
 	free(tree);
+}
+
+
+static void calc_bounds(struct scene *scn)
+{
+	int i, j, k, nmeshes;
+	struct mesh *mesh;
+	float dsq;
+
+	scn->bsph_cent.x = (scn->octree->box.vmin.x + scn->octree->box.vmax.x) * 0.5f;
+	scn->bsph_cent.y = (scn->octree->box.vmin.y + scn->octree->box.vmax.y) * 0.5f;
+	scn->bsph_cent.z = (scn->octree->box.vmin.z + scn->octree->box.vmax.z) * 0.5f;
+
+	scn->bsph_rad = 0.0f;
+	nmeshes = dynarr_size(scn->meshes);
+	for(i=0; i<nmeshes; i++) {
+		mesh = scn->meshes[i];
+		for(j=0; j<mesh->nfaces; j++) {
+			for(k=0; k<3; k++) {
+				dsq = cgm_vdist_sq(&mesh->faces[j].v[k].pos, &scn->bsph_cent);
+				if(dsq > scn->bsph_rad) {
+					scn->bsph_rad = dsq;
+				}
+			}
+		}
+	}
+
+	if(scn->bsph_rad > 0.0f) {
+		scn->bsph_rad = sqrt(scn->bsph_rad);
+	}
 }

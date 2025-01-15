@@ -23,3 +23,4 @@ core
 .vs/
 *.tar
 *.png
+tools/tilerend/tilerend

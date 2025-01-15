@@ -3,7 +3,7 @@ obj = $(src:.c=.o)
 dep = $(src:.c=.d)
 bin = tilerend
 
-opt = -O3 -ffast-math -fno-strict-aliasing
+#opt = -O3 -ffast-math -fno-strict-aliasing
 dbg = -g
 
 CFLAGS = -pedantic -Wall $(dbg) $(opt) -MMD

@@ -23,6 +23,7 @@ static void orthoray(struct ray *ray, int x, int y);
 int rend_init(void)
 {
 	rend_perspective(cgm_deg_to_rad(50), 1000.0f);
+	cgm_midentity(view_xform);
 	return 0;
 }
 
@@ -65,11 +66,15 @@ void render(struct scene *scn)
 	int i, j;
 	struct ray ray;
 	cgm_vec4 color;
-	cgm_vec4 *pixels = rendfb->pixels;
+	cgm_vec4 *pixels = rendfb->pixels + vp.y * rendfb->width + vp.x;
 
 	for(i=0; i<vp.height; i++) {
 		for(j=0; j<vp.width; j++) {
 			primray(&ray, j, i);
+			if(i == 128 && j == 128) {
+				printf("cr %g %g %g -> %g %g %g\n", ray.origin.x, ray.origin.y,
+						ray.origin.z, ray.dir.x, ray.dir.y, ray.dir.z);
+			}
 			raytrace(&color, &ray, scn, 0);
 			*pixels++ = color;
 		}
@@ -114,6 +119,12 @@ static void shade(cgm_vec4 *color, struct rayhit *hit, int iter)
 	color->w = 1.0f;
 }
 
+static void calc_invdir(struct ray *ray)
+{
+	ray->invdir.x = ray->dir.x == 0.0f ? 0.0f : 1.0f / ray->dir.x;
+	ray->invdir.y = ray->dir.y == 0.0f ? 0.0f : 1.0f / ray->dir.y;
+	ray->invdir.z = ray->dir.z == 0.0f ? 0.0f : 1.0f / ray->dir.z;
+}
 
 static void perspray(struct ray *ray, int x, int y)
 {
@@ -128,9 +139,7 @@ static void perspray(struct ray *ray, int x, int y)
 	cgm_vmul_m4v3(&ray->origin, view_xform);
 	cgm_vmul_m3v3(&ray->dir, view_xform);
 
-	ray->invdir.x = 1.0f / ray->dir.x;
-	ray->invdir.y = 1.0f / ray->dir.y;
-	ray->invdir.z = 1.0f / ray->dir.z;
+	calc_invdir(ray);
 }
 
 static void orthoray(struct ray *ray, int x, int y)
@@ -145,7 +154,5 @@ static void orthoray(struct ray *ray, int x, int y)
 	cgm_vmul_m4v3(&ray->origin, view_xform);
 	cgm_vmul_m3v3(&ray->dir, view_xform);
 
-	ray->invdir.x = 1.0f / ray->dir.x;
-	ray->invdir.y = 1.0f / ray->dir.y;
-	ray->invdir.z = 1.0f / ray->dir.z;
+	calc_invdir(ray);
 }
