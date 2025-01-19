@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#include <assert.h>
 #include <alloca.h>
 #include <sys/time.h>
 #include "tilerend.h"
@@ -17,7 +18,13 @@ static int cmd_viewpos(char *args);
 static int cmd_viewtarg(char *args);
 static int cmd_persp(char *args);
 static int cmd_ortho(char *args);
+static int cmd_shadowcaster(char *args);
+static int cmd_lightcolor(char *args);
+static int cmd_lightdir(char *args);
+static int cmd_lightpos(char *args);
 static int cmd_render(char *args);
+
+static int bool_arg(char *args);
 
 static struct {
 	const char *name;
@@ -31,6 +38,10 @@ static struct {
 	{"viewtarg", cmd_viewtarg},
 	{"persp", cmd_persp},
 	{"ortho", cmd_ortho},
+	{"shadowcaster", cmd_shadowcaster},
+	{"lightcolor", cmd_lightcolor},
+	{"lightdir", cmd_lightdir},
+	{"lightpos", cmd_lightpos},
 	{"render", cmd_render},
 	{0, 0}
 };
@@ -38,6 +49,8 @@ static struct {
 static int tilex, tiley;
 static int fov = 50;
 static float orthosz, orthomin, orthomax;
+static cgm_vec3 ltcol = {1, 1, 1};
+static int ltshad = 1;
 
 int parse_cmd(const char *cmdline)
 {
@@ -193,7 +206,7 @@ static int cmd_persp(char *args)
 		fprintf(stderr, "invalid argument to persp: %s\n", args);
 		return -1;
 	}
-	fov = cgm_deg_to_rad(val);
+	fov = val;
 	orthosz = 0;
 	return 0;
 }
@@ -218,11 +231,99 @@ static int cmd_ortho(char *args)
 	return 0;
 }
 
+static int cmd_shadowcaster(char *args)
+{
+	int bval = bool_arg(args);
+	if(bval == -1) {
+		fprintf(stderr, "invalid arguments to shadowcaster: %s\n", args);
+		return -1;
+	}
+	ltshad = bval;
+	return 0;
+}
+
+static int cmd_lightcolor(char *args)
+{
+	int num;
+
+	if(!args) {
+		fprintf(stderr, "missing arguments from lightcolor command\n");
+		return -1;
+	}
+
+	if((num = sscanf(args, "%f %f %f", &ltcol.x, &ltcol.y, &ltcol.z)) != 3) {
+		if(num == 1) {
+			ltcol.y = ltcol.z = ltcol.x;
+		} else {
+			fprintf(stderr, "invalid arguments to lightcolor: %s\n", args);
+			return -1;
+		}
+	}
+	return 0;
+}
+
+static int cmd_lightdir(char *args)
+{
+	struct light *lt;
+	cgm_vec3 dir;
+
+	if(!args) {
+		fprintf(stderr, "missing arguments from lightdir command\n");
+		return -1;
+	}
+
+	if(sscanf(args, "%f %f %f", &dir.x, &dir.y, &dir.z) != 3) {
+		fprintf(stderr, "invalid arguments to lightdir: %s\n", args);
+		return -1;
+	}
+	cgm_vnormalize(&dir);
+
+	if(!(lt = malloc(sizeof *lt))) {
+		fprintf(stderr, "failed to allocate light\n");
+		return -1;
+	}
+	lt->type = DIRLIGHT;
+	lt->posdir = dir;
+	lt->color = ltcol;
+	lt->shadows = ltshad;
+
+	add_light(&scn, lt);
+	return 0;
+}
+
+static int cmd_lightpos(char *args)
+{
+	struct light *lt;
+	cgm_vec3 dir;
+
+	if(!args) {
+		fprintf(stderr, "missing arguments from lightpos command\n");
+		return -1;
+	}
+
+	if(sscanf(args, "%f %f %f", &dir.x, &dir.y, &dir.z) != 3) {
+		fprintf(stderr, "invalid arguments to lightpos: %s\n", args);
+		return -1;
+	}
+
+	if(!(lt = malloc(sizeof *lt))) {
+		fprintf(stderr, "failed to allocate light\n");
+		return -1;
+	}
+	lt->type = PTLIGHT;
+	lt->posdir = dir;
+	lt->color = ltcol;
+	lt->shadows = ltshad;
+
+	add_light(&scn, lt);
+	return 0;
+}
+
 static int cmd_render(char *args)
 {
 	float xform[16];
 	struct timeval tv, tv0;
-	cgm_vec3 up = {0, 1, 0};
+	cgm_vec3 vdir, up = {0, 1, 0};
 
 	if(!framebuf.pixels) {
 		if(!(framebuf.pixels = malloc(framebuf.width * framebuf.height * sizeof *framebuf.pixels))) {
@@ -247,7 +348,8 @@ static int cmd_render(char *args)
 		rend_perspective(fovrad, maxdist ? maxdist : 100.0f);
 	}
 
-	if(fabs(viewtarg.y - viewpos.y) >= 0.98) {
+	vdir = viewtarg; cgm_vsub(&vdir, &viewpos);
+	if(vdir.x * vdir.x + vdir.z * vdir.z < 1e-4) {
 		cgm_vcons(&up, 0, 0, 1);
 	}
 	cgm_mlookat(xform, &viewpos, &viewtarg, &up);
@@ -268,4 +370,21 @@ static int cmd_render(char *args)
 		tiley += tileheight;
 	}
 	return 0;
+}
+
+static int bool_arg(char *args)
+{
+	int i;
+	static const char *fstr[] = {"0", "off", "no", "false", 0};
+	static const char *tstr[] = {"1", "on", "yes", "true", 0};
+
+	assert(sizeof fstr == sizeof tstr);
+
+	if(!args) return -1;
+
+	for(i=0; fstr[i]; i++) {
+		if(strcasecmp(args, fstr[i]) == 0) return 0;
+		if(strcasecmp(args, tstr[i]) == 0) return 1;
+	}
+	return -1;
 }

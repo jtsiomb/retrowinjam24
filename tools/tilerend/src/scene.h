@@ -24,6 +24,7 @@ struct vertex {
 };
 
 struct meshtri {
+	unsigned long id;
 	struct vertex v[3];
 	cgm_vec3 norm;
 	struct material *mtl;
@@ -41,6 +42,15 @@ struct mesh {
 	float xform[16], inv_xform[16];
 };
 
+enum light_type { PTLIGHT, DIRLIGHT };
+
+struct light {
+	enum light_type type;
+	cgm_vec3 posdir;
+	cgm_vec3 color;
+	int shadows;
+};
+
 struct octnode {
 	struct meshtri *faces;
 	struct aabox box;
@@ -50,6 +60,7 @@ struct octnode {
 struct scene {
 	struct mesh **meshes;
 	struct material **mtl;
+	struct light **lights;
 
 	struct octnode *octree;
 
@@ -80,6 +91,7 @@ int dump_scene(struct scene *scn, const char *fname);
 
 void add_mesh(struct scene *scn, struct mesh *mesh);
 void add_material(struct scene *scn, struct material *mtl);
+void add_light(struct scene *scn, struct light *lt);
 
 struct material *find_material(struct scene *scn, const char *name);
 

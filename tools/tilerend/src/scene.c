@@ -11,6 +11,8 @@
 #define OCT_SPLITCNT	32
 #define OCT_MAXDEPTH	10
 
+static void compute_tangents(struct mesh *mesh);
+
 static void calc_bounds(struct scene *scn);
 static int build_octree_rec(struct octnode *oct, int depth);
 static void init_aabox(struct aabox *box);
@@ -22,15 +24,20 @@ static struct material defmtl = {"default", {0.8, 0.2, 0.75}, {0.4, 0.4, 0.4}, 5
 
 int init_scene(struct scene *scn)
 {
+	memset(scn, 0, sizeof *scn);
+
 	if(!(scn->meshes = dynarr_alloc(0, sizeof *scn->meshes))) {
 		fprintf(stderr, "init_scene: failed to initialize meshes dynamic array\n");
 		return -1;
 	}
 	if(!(scn->mtl = dynarr_alloc(0, sizeof *scn->mtl))) {
-		fprintf(stderr, "init_scene: failed to initializes materials dynamic array\n");
+		fprintf(stderr, "init_scene: failed to initialize materials dynamic array\n");
 		return -1;
 	}
-	scn->bsph_rad = 1.0f;
+	if(!(scn->lights = dynarr_alloc(0, sizeof *scn->lights))) {
+		fprintf(stderr, "init_scene: failed to initialize lights dynamic array\n");
+		return -1;
+	}
 	return 0;
 }
 
@@ -47,6 +54,11 @@ void destroy_scene(struct scene *scn)
 		free_material(scn->mtl[i]);
 	}
 	dynarr_free(scn->mtl);
+
+	for(i=0; i<dynarr_size(scn->lights); i++) {
+		free(scn->lights[i]);
+	}
+	dynarr_free(scn->lights);
 
 	free_octree(scn->octree);
 }
@@ -89,6 +101,7 @@ int load_scene(struct scene *scn, const char *fname)
 	cgm_vec3 va, vb;
 	static const cgm_vec3 defnorm = {0, 1, 0};
 	static const cgm_vec2 defuv;
+	unsigned long faceid = 0;
 
 	printf("loading: %s ...\n", fname);
 
@@ -149,12 +162,14 @@ int load_scene(struct scene *scn, const char *fname)
 		for(j=0; j<mfm->num_faces; j++) {
 			struct meshtri *tri = mesh->faces + j;
 			tri->mtl = mesh->mtl;
+			tri->id = faceid++;
 
 			for(k=0; k<3; k++) {
 				int vidx = mfm->faces[j].vidx[k];
 				tri->v[k].pos = *(cgm_vec3*)&mfm->vertex[vidx];
 				tri->v[k].norm = mfm->normal ? *(cgm_vec3*)&mfm->normal[vidx] : defnorm;
 				tri->v[k].uv = mfm->texcoord ? *(cgm_vec2*)&mfm->texcoord[vidx] : defuv;
+				cgm_vcons(&tri->v[k].tang, 0, 0, 0);
 			}
 
 			va = tri->v[1].pos; cgm_vsub(&va, &tri->v[0].pos);
@@ -165,6 +180,10 @@ int load_scene(struct scene *scn, const char *fname)
 
 		mesh->aabb.vmin = *(cgm_vec3*)&mfm->aabox.vmin;
 		mesh->aabb.vmax = *(cgm_vec3*)&mfm->aabox.vmax;
+
+		if(mesh->mtl->tex_normal) {
+			compute_tangents(mesh);
+		}
 
 		add_mesh(scn, mesh);
 		mesh = 0;
@@ -254,6 +273,13 @@ void add_material(struct scene *scn, struct material *mtl)
 	}
 }
 
+void add_light(struct scene *scn, struct light *lt)
+{
+	if(!(scn->lights = dynarr_push(scn->lights, &lt))) {
+		abort();
+	}
+}
+
 struct material *find_material(struct scene *scn, const char *name)
 {
 	int i;
@@ -272,6 +298,7 @@ struct rendimage *load_texture(const char *fname)
 	float *img;
 	struct rendimage *ri;
 
+	printf("loading texture: %s\n", fname);
 	if(!(img = img_load_pixels(fname, &width, &height, IMG_FMT_RGBAF))) {
 		return 0;
 	}
@@ -289,6 +316,9 @@ struct rendimage *load_texture(const char *fname)
 static void compute_rayhit(struct rayhit *hit, struct ray *ray)
 {
 	struct meshtri *tri = hit->face;
+	unsigned int texbits = tri->mtl->tex_diffuse ? 1 : 0;
+
+	if(tri->mtl->tex_normal) texbits |= 2;
 
 	hit->ray = *ray;
 	hit->pos.x = ray->origin.x + ray->dir.x * hit->t;
@@ -303,20 +333,63 @@ static void compute_rayhit(struct rayhit *hit, struct ray *ray)
 		tri->v[2].norm.z * hit->bary.z;
 	cgm_vnormalize(&hit->norm);
 
-	/*
-	hit->tang.x = tri->v[0].tang.x * hit->bary.x + tri->v[1].tang.x * hit->bary.y +
-		tri->v[2].tang.x * hit->bary.z;
-	hit->tang.y = tri->v[0].tang.y * hit->bary.x + tri->v[1].tang.y * hit->bary.y +
-		tri->v[2].tang.y * hit->bary.z;
-	hit->tang.z = tri->v[0].tang.z * hit->bary.x + tri->v[1].tang.z * hit->bary.y +
-		tri->v[2].tang.z * hit->bary.z;
-	cgm_vnormalize(&hit->tang);
-	*/
+	if(texbits & 2) {
+		hit->tang.x = tri->v[0].tang.x * hit->bary.x + tri->v[1].tang.x * hit->bary.y +
+			tri->v[2].tang.x * hit->bary.z;
+		hit->tang.y = tri->v[0].tang.y * hit->bary.x + tri->v[1].tang.y * hit->bary.y +
+			tri->v[2].tang.y * hit->bary.z;
+		hit->tang.z = tri->v[0].tang.z * hit->bary.x + tri->v[1].tang.z * hit->bary.y +
+			tri->v[2].tang.z * hit->bary.z;
+		cgm_vnormalize(&hit->tang);
+	}
 
-	hit->uv.x = tri->v[0].uv.x * hit->bary.x + tri->v[1].uv.x * hit->bary.y +
-		tri->v[2].uv.x * hit->bary.z;
-	hit->uv.y = tri->v[0].uv.y * hit->bary.x + tri->v[1].uv.y * hit->bary.y +
-		tri->v[2].uv.y * hit->bary.z;
+	if(texbits) {
+		hit->uv.x = tri->v[0].uv.x * hit->bary.x + tri->v[1].uv.x * hit->bary.y +
+			tri->v[2].uv.x * hit->bary.z;
+		hit->uv.y = tri->v[0].uv.y * hit->bary.x + tri->v[1].uv.y * hit->bary.y +
+			tri->v[2].uv.y * hit->bary.z;
+	}
+}
+
+/* adapted from: https://terathon.com/blog/tangent-space.html */
+static void compute_tangents(struct mesh *mesh)
+{
+	int i, j;
+	float r, dot;
+	cgm_vec3 va, vb, udir, nprojt;
+	cgm_vec2 ta, tb;
+	struct meshtri *tri = mesh->faces;
+
+	/* assumes tangents are all 0 */
+
+	for(i=0; i<mesh->nfaces; i++) {
+		cgm_vcsub(&va, &tri->v[1].pos, &tri->v[0].pos);
+		cgm_vcsub(&vb, &tri->v[2].pos, &tri->v[0].pos);
+		ta.x = tri->v[1].uv.x - tri->v[0].uv.x;
+		ta.y = tri->v[1].uv.y - tri->v[0].uv.y;
+		tb.x = tri->v[2].uv.x - tri->v[0].uv.x;
+		tb.y = tri->v[2].uv.y - tri->v[0].uv.y;
+		r = 1.0f / (ta.x * tb.y - tb.x * ta.y);
+
+		udir.x = (tb.y * va.x - ta.y * vb.x) * r;
+		udir.y = (tb.y * va.y - ta.y * vb.y) * r;
+		udir.z = (tb.y * va.z - ta.y * vb.z) * r;
+
+		cgm_vadd(&tri->v[0].tang, &udir);
+		cgm_vadd(&tri->v[1].tang, &udir);
+		cgm_vadd(&tri->v[2].tang, &udir);
+		tri++;
+	}
+
+	tri = mesh->faces;
+	for(i=0; i<mesh->nfaces; i++) {
+		for(j=0; j<3; j++) {
+			dot = cgm_vdot(&tri->v[j].norm, &tri->v[j].tang);
+			cgm_vcscale(&nprojt, &tri->v[j].norm, dot);
+			cgm_vsub(&tri->v[j].tang, &nprojt);
+			cgm_vnormalize(&tri->v[j].tang);
+		}
+	}
 }
 
 int ray_scene(struct scene *scn, struct ray *ray, struct rayhit *hit)
@@ -326,7 +399,7 @@ int ray_scene(struct scene *scn, struct ray *ray, struct rayhit *hit)
 
 	if(scn->octree) {
 		if(ray_octree(scn->octree, ray, hit)) {
-			compute_rayhit(hit, ray);
+			if(hit) compute_rayhit(hit, ray);
 			return 1;
 		}
 		return 0;
@@ -403,8 +476,10 @@ int ray_octree(struct octnode *oct, struct ray *ray, struct rayhit *hit)
 	}
 
 	if(nearest.face) {
-		*hit = nearest;
-		hit->mesh = (void*)1;
+		if(hit) {
+			*hit = nearest;
+			hit->mesh = (void*)1;
+		}
 		return 1;
 	}
 	return 0;
@@ -454,7 +529,7 @@ int ray_mesh(struct mesh *mesh, struct ray *ray, struct rayhit *hit)
 int ray_triangle(struct meshtri *tri, struct ray *ray, struct rayhit *hit)
 {
 	cgm_vec3 vab, vac, tvec, pvec, qvec;
-	float det, inv_det, u, v;
+	float det, inv_det, u, v, t;
 
 	vab = tri->v[1].pos; cgm_vsub(&vab, &tri->v[0].pos);
 	vac = tri->v[2].pos; cgm_vsub(&vac, &tri->v[0].pos);
@@ -476,8 +551,13 @@ int ray_triangle(struct meshtri *tri, struct ray *ray, struct rayhit *hit)
 	v = cgm_vdot(&ray->dir, &qvec) * inv_det;
 	if(v < 0.0f || u + v > 1.0f) return 0;
 
+	t = cgm_vdot(&vac, &qvec) * inv_det;
+	if(t < EPSILON) {
+		return 0;
+	}
+
 	if(hit) {
-		hit->t = cgm_vdot(&vac, &qvec) * inv_det;
+		hit->t = t;
 		hit->bary.x = 1.0f - u - v;
 		hit->bary.y = u;
 		hit->bary.z = v;
