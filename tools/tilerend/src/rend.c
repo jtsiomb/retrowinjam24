@@ -75,7 +75,12 @@ void render(struct scene *scn)
 		for(j=0; j<vp.width; j++) {
 			primray(&ray, j, i);
 			raytrace(&color, &ray, scn, 0);
-			*pixels++ = color;
+
+			pixels->x = pow(color.x, 1.0f / 2.2f);
+			pixels->y = pow(color.y, 1.0f / 2.2f);
+			pixels->z = pow(color.z, 1.0f / 2.2f);
+			pixels->w = color.w;
+			pixels++;
 		}
 		pixels += rendfb->width - vp.width;
 	}
@@ -97,17 +102,6 @@ static void cons_tbn_matrix(float *tbn, struct rayhit *hit)
 	cgm_vec3 bitan;
 	cgm_vcross(&bitan, &hit->tang, &hit->norm);
 
-	/*
-	tbn[0] = hit->tang.x;
-	tbn[4] = hit->tang.y;
-	tbn[8] = hit->tang.z;
-	tbn[1] = bitan.x;
-	tbn[5] = bitan.y;
-	tbn[9] = bitan.z;
-	tbn[2] = hit->norm.x;
-	tbn[6] = hit->norm.y;
-	tbn[10] = hit->norm.z;
-	*/
 	tbn[0] = hit->tang.x;
 	tbn[1] = hit->tang.y;
 	tbn[2] = hit->tang.z;

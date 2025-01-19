@@ -112,7 +112,7 @@ int load_scene(struct scene *scn, const char *fname)
 
 	for(i=0; i<mf_num_materials(mf); i++) {
 		mfmtl = mf_get_material(mf, i);
-		if(!(mtl = malloc(sizeof *mtl)) || !(mtl->name = strdup(mfmtl->name))) {
+		if(!(mtl = calloc(1, sizeof *mtl)) || !(mtl->name = strdup(mfmtl->name))) {
 			fprintf(stderr, "load_scene: failed to allocate material\n");
 			goto err;
 		}
@@ -294,22 +294,45 @@ struct material *find_material(struct scene *scn, const char *name)
 
 struct rendimage *load_texture(const char *fname)
 {
-	int width, height;
-	float *img;
+	int i, npixels, srgb;
+	struct img_pixmap img;
 	struct rendimage *ri;
+	cgm_vec4 *pptr;
 
 	printf("loading texture: %s\n", fname);
-	if(!(img = img_load_pixels(fname, &width, &height, IMG_FMT_RGBAF))) {
+	img_init(&img);
+	if(img_load(&img, fname) == -1) {
+		return 0;
+	}
+	if(!img_is_float(&img)) {
+		srgb = 1;
+	}
+	if(img_convert(&img, IMG_FMT_RGBAF) == -1) {
+		fprintf(stderr, "load_texture: failed to convert to RGBA float format\n");
+		img_destroy(&img);
 		return 0;
 	}
 
 	if(!(ri = malloc(sizeof *ri))) {
 		fprintf(stderr, "load_texture: failed to allocate image\n");
+		img_destroy(&img);
 		return 0;
 	}
-	ri->pixels = (cgm_vec4*)img;
-	ri->width = width;
-	ri->height = height;
+	ri->pixels = (cgm_vec4*)img.pixels;
+	ri->width = img.width;
+	ri->height = img.height;
+
+	if(srgb) {
+		printf("convert!\n");
+		npixels = img.width * img.height;
+		pptr = ri->pixels;
+		for(i=0; i<npixels; i++) {
+			pptr->x = pow(pptr->x, 2.2f);
+			pptr->y = pow(pptr->y, 2.2f);
+			pptr->z = pow(pptr->z, 2.2f);
+			pptr++;
+		}
+	}
 	return ri;
 }
 
@@ -525,7 +548,7 @@ int ray_mesh(struct mesh *mesh, struct ray *ray, struct rayhit *hit)
 	return 0;
 }
 
-#define EPSILON	1e-6
+#define EPSILON	1e-5
 int ray_triangle(struct meshtri *tri, struct ray *ray, struct rayhit *hit)
 {
 	cgm_vec3 vab, vac, tvec, pvec, qvec;
