@@ -95,7 +95,8 @@ void add_light(struct scene *scn, struct light *lt);
 
 struct material *find_material(struct scene *scn, const char *name);
 
-struct rendimage *load_texture(const char *fname);
+enum { COLOR_LINEAR, COLOR_SRGB };
+struct rendimage *load_texture(const char *fname, int srgb);
 
 int ray_scene(struct scene *scn, struct ray *ray, struct rayhit *hit);
 int ray_octree(struct octnode *oct, struct ray *ray, struct rayhit *hit);

@@ -122,13 +122,13 @@ int load_scene(struct scene *scn, const char *fname)
 
 		if(mfmtl->attr[MF_COLOR].map.name) {
 			tex = mf_find_asset(mf, mfmtl->attr[MF_COLOR].map.name);
-			if(!(mtl->tex_diffuse = load_texture(tex))) {
+			if(!(mtl->tex_diffuse = load_texture(tex, COLOR_SRGB))) {
 				goto err;
 			}
 		}
 		if(mfmtl->attr[MF_BUMP].map.name) {
 			tex = mf_find_asset(mf, mfmtl->attr[MF_BUMP].map.name);
-			if(!(mtl->tex_normal = load_texture(tex))) {
+			if(!(mtl->tex_normal = load_texture(tex, COLOR_LINEAR))) {
 				goto err;
 			}
 		}
@@ -292,9 +292,9 @@ struct material *find_material(struct scene *scn, const char *name)
 	return 0;
 }
 
-struct rendimage *load_texture(const char *fname)
+struct rendimage *load_texture(const char *fname, int srgb)
 {
-	int i, npixels, srgb;
+	int i, npixels;
 	struct img_pixmap img;
 	struct rendimage *ri;
 	cgm_vec4 *pptr;
@@ -304,8 +304,8 @@ struct rendimage *load_texture(const char *fname)
 	if(img_load(&img, fname) == -1) {
 		return 0;
 	}
-	if(!img_is_float(&img)) {
-		srgb = 1;
+	if(img_is_float(&img)) {
+		srgb = 0;	/* float image formats are linear */
 	}
 	if(img_convert(&img, IMG_FMT_RGBAF) == -1) {
 		fprintf(stderr, "load_texture: failed to convert to RGBA float format\n");
@@ -323,7 +323,6 @@ struct rendimage *load_texture(const char *fname)
 	ri->height = img.height;
 
 	if(srgb) {
-		printf("convert!\n");
 		npixels = img.width * img.height;
 		pptr = ri->pixels;
 		for(i=0; i<npixels; i++) {
