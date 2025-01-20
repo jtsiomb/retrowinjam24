@@ -32,4 +32,6 @@ commands in this section change the attributes of the next light(s) to be added.
 
 Rendering
 ---------
- - `render`
+ - `render`: renders the visible set if it's non-empty, or else the whole scene
+ - `visclear`: clears the visible set
+ - `visadd`: add mesh to the visible set

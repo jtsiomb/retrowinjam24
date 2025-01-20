@@ -64,6 +64,7 @@ struct scene {
 
 	struct octnode *octree;
 
+	struct aabox aabb;
 	cgm_vec3 bsph_cent;
 	float bsph_rad;
 };
@@ -93,6 +94,7 @@ void add_mesh(struct scene *scn, struct mesh *mesh);
 void add_material(struct scene *scn, struct material *mtl);
 void add_light(struct scene *scn, struct light *lt);
 
+struct mesh *find_mesh(struct scene *scn, const char *name);
 struct material *find_material(struct scene *scn, const char *name);
 
 enum { COLOR_LINEAR, COLOR_SRGB };
@@ -107,5 +109,6 @@ int ray_aabb(struct aabox *box, struct ray *ray);
 
 int build_octree(struct scene *scn);
 void free_octree(struct octnode *tree);
+void print_octstats(struct scene *scn);
 
 #endif /* SCENE_H_ */

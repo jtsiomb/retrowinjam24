@@ -3,10 +3,10 @@ image output.png
 imagesize 512x512
 tilesize 512x512
 
-#visclear
-#visadd floor
-#visadd cone
-#visadd torus
+visclear
+visadd floor
+visadd suz
+visadd torus
 
 lightdir 2 2.5 3
 

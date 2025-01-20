@@ -13,11 +13,10 @@
 
 static void compute_tangents(struct mesh *mesh);
 
-static void calc_bounds(struct scene *scn);
+/*static void calc_bounds(struct scene *scn);*/
 static int build_octree_rec(struct octnode *oct, int depth);
 static void init_aabox(struct aabox *box);
 static void expand_aabox(struct aabox *box, const cgm_vec3 *pt);
-static void print_octstats(struct scene *scn);
 int aabox_tri_test(const struct aabox *box, const struct meshtri *tri);
 
 static struct material defmtl = {"default", {0.8, 0.2, 0.75}, {0.4, 0.4, 0.4}, 50.0f, 0, 0};
@@ -191,11 +190,13 @@ int load_scene(struct scene *scn, const char *fname)
 
 	mf_free(mf);
 
+	/*
 	printf("building octree ...\n");
 	build_octree(scn);
 	print_octstats(scn);
 
 	calc_bounds(scn);
+	*/
 	return 0;
 
 err:
@@ -278,6 +279,18 @@ void add_light(struct scene *scn, struct light *lt)
 	if(!(scn->lights = dynarr_push(scn->lights, &lt))) {
 		abort();
 	}
+}
+
+struct mesh *find_mesh(struct scene *scn, const char *name)
+{
+	int i;
+
+	for(i=0; i<dynarr_size(scn->meshes); i++) {
+		if(strcmp(scn->meshes[i]->name, name) == 0) {
+			return scn->meshes[i];
+		}
+	}
+	return 0;
 }
 
 struct material *find_material(struct scene *scn, const char *name)
@@ -767,7 +780,7 @@ static void get_octstats(struct octnode *n, struct octstats *s, int h)
 	}
 }
 
-static void print_octstats(struct scene *scn)
+void print_octstats(struct scene *scn)
 {
 	struct octstats st = {INT_MAX, 0, 0};
 
@@ -782,14 +795,6 @@ static void print_octstats(struct scene *scn)
 	printf(" height: %d\n", st.height);
 	printf(" least faces: %d\n", st.min_faces);
 	printf(" most faces: %d\n", st.max_faces);
-	if(scn->octree->sub[0]) {
-		printf(" cx [%g .. %g/%g .. %g]\n", scn->octree->sub[0]->box.vmin.x, scn->octree->sub[0]->box.vmax.x,
-				scn->octree->sub[4]->box.vmin.x, scn->octree->sub[4]->box.vmax.x);
-		printf(" cy [%g .. %g/%g .. %g]\n", scn->octree->sub[0]->box.vmin.y, scn->octree->sub[0]->box.vmax.y,
-				scn->octree->sub[2]->box.vmin.y, scn->octree->sub[2]->box.vmax.y);
-		printf(" cx [%g .. %g/%g .. %g]\n", scn->octree->sub[0]->box.vmin.z, scn->octree->sub[0]->box.vmax.z,
-				scn->octree->sub[1]->box.vmin.z, scn->octree->sub[1]->box.vmax.z);
-	}
 }
 
 static void init_aabox(struct aabox *box)
@@ -908,7 +913,7 @@ void free_octree(struct octnode *tree)
 	free(tree);
 }
 
-
+/*
 static void calc_bounds(struct scene *scn)
 {
 	int i, j, k, nmeshes;
@@ -937,3 +942,4 @@ static void calc_bounds(struct scene *scn)
 		scn->bsph_rad = sqrt(scn->bsph_rad);
 	}
 }
+*/

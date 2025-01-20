@@ -5,7 +5,7 @@
 #include "rend.h"
 #include "scene.h"
 
-extern struct scene scn;
+extern struct scene scn, vis;
 extern char *outfname;
 extern struct rendimage framebuf;
 extern int tilewidth, tileheight;

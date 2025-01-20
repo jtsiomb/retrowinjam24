@@ -8,7 +8,7 @@
 #include "tilerend.h"
 #include "script.h"
 
-struct scene scn;
+struct scene scn, vis;
 char *outfname;
 struct rendimage framebuf;
 int tilewidth, tileheight;
@@ -43,6 +43,7 @@ int main(int argc, char **argv)
 	cgm_vcons(&viewtarg, 0, 0, -1);
 
 	init_scene(&scn);
+	init_scene(&vis);
 	rend_init();
 
 	gettimeofday(&tv0, 0);

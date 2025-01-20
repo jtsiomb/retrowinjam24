@@ -6,6 +6,7 @@
 #include <alloca.h>
 #include <sys/time.h>
 #include "tilerend.h"
+#include "dynarr.h"
 
 static char *clean_line(char *s);
 static char *next_token(char **line);
@@ -23,6 +24,8 @@ static int cmd_lightcolor(char *args);
 static int cmd_lightdir(char *args);
 static int cmd_lightpos(char *args);
 static int cmd_render(char *args);
+static int cmd_visclear(char *args);
+static int cmd_visadd(char *args);
 
 static int bool_arg(char *args);
 
@@ -43,6 +46,8 @@ static struct {
 	{"lightdir", cmd_lightdir},
 	{"lightpos", cmd_lightpos},
 	{"render", cmd_render},
+	{"visclear", cmd_visclear},
+	{"visadd", cmd_visadd},
 	{0, 0}
 };
 
@@ -324,6 +329,7 @@ static int cmd_render(char *args)
 	float xform[16];
 	struct timeval tv, tv0;
 	cgm_vec3 vdir, up = {0, 1, 0};
+	struct octnode *orig_octree = 0;
 
 	if(!framebuf.pixels) {
 		if(!(framebuf.pixels = malloc(framebuf.width * framebuf.height * sizeof *framebuf.pixels))) {
@@ -355,6 +361,29 @@ static int cmd_render(char *args)
 	cgm_mlookat(xform, &viewpos, &viewtarg, &up);
 	rend_view(xform);
 
+	if(!dynarr_empty(vis.meshes)) {
+		if(!vis.octree) {
+			printf("building octree for visible set (%d meshes)\n", dynarr_size(vis.meshes));
+			if(build_octree(&vis) == -1) {
+				fprintf(stderr, "failed to build octree for visible set\n");
+				return -1;
+			}
+			print_octstats(&vis);
+		}
+
+		orig_octree = scn.octree;
+		scn.octree = vis.octree;
+	} else {
+		if(!scn.octree) {
+			printf("bulding scene octree (%d meshes)\n", dynarr_size(scn.meshes));
+			if(build_octree(&scn) == -1) {
+				fprintf(stderr, "failed to build scene octree\n");
+				return -1;
+			}
+			print_octstats(&scn);
+		}
+	}
+
 	printf("render %dx%d at %d,%d ... ", tilewidth, tileheight, tilex, tiley);
 	fflush(stdout);
 
@@ -364,11 +393,48 @@ static int cmd_render(char *args)
 
 	printf("%g sec\n", (float)(tv.tv_sec - tv0.tv_sec) + (float)(tv.tv_usec - tv0.tv_usec) / 1000000.0f);
 
+	if(vis.octree) {
+		scn.octree = orig_octree;
+	}
+
 	tilex += tilewidth;
 	if(tilex + tilewidth > framebuf.width) {
 		tilex = 0;
 		tiley += tileheight;
 	}
+	return 0;
+}
+
+static int cmd_visclear(char *args)
+{
+	vis.meshes = dynarr_clear(vis.meshes);
+	free_octree(vis.octree);
+	vis.octree = 0;
+	return 0;
+}
+
+static int cmd_visadd(char *args)
+{
+	struct mesh *mesh;
+	void *tmp;
+
+	if(!args) {
+		fprintf(stderr, "missing arguments from visadd command\n");
+		return -1;
+	}
+
+	if(!(mesh = find_mesh(&scn, args))) {
+		fprintf(stderr, "visadd: failed to find mesh: %s\n", args);
+		return -1;
+	}
+	if(!(tmp = dynarr_push(vis.meshes, &mesh))) {
+		fprintf(stderr, "visadd: failed to add mesh\n");
+		return -1;
+	}
+	vis.meshes = tmp;
+
+	free_octree(vis.octree);
+	vis.octree = 0;
 	return 0;
 }
 
