@@ -16,7 +16,9 @@ static int cmd_image(char *args);
 static int cmd_imagesize(char *args);
 static int cmd_tilesize(char *args);
 static int cmd_viewpos(char *args);
+static int cmd_viewpan(char *args);
 static int cmd_viewtarg(char *args);
+static int cmd_viewrot(char *args);
 static int cmd_persp(char *args);
 static int cmd_ortho(char *args);
 static int cmd_shadowcaster(char *args);
@@ -38,7 +40,9 @@ static struct {
 	{"imagesize", cmd_imagesize},
 	{"tilesize", cmd_tilesize},
 	{"viewpos", cmd_viewpos},
+	{"viewpan", cmd_viewpan},
 	{"viewtarg", cmd_viewtarg},
+	{"viewrot", cmd_viewrot},
 	{"persp", cmd_persp},
 	{"ortho", cmd_ortho},
 	{"shadowcaster", cmd_shadowcaster},
@@ -56,6 +60,9 @@ static int fov = 50;
 static float orthosz, orthomin, orthomax;
 static cgm_vec3 ltcol = {1, 1, 1};
 static int ltshad = 1;
+static cgm_vec3 viewpan;
+static cgm_vec3 viewrot;
+static int userot;
 
 int parse_cmd(const char *cmdline)
 {
@@ -184,6 +191,20 @@ static int cmd_viewpos(char *args)
 	return 0;
 }
 
+static int cmd_viewpan(char *args)
+{
+	if(!args) {
+		fprintf(stderr, "missing argument from viewpan command\n");
+		return -1;
+	}
+
+	if(sscanf(args, "%f %f %f", &viewpan.x, &viewpan.y, &viewpan.z) != 3) {
+		fprintf(stderr, "invalid argument to viewpan: %s\n", args);
+		return -1;
+	}
+	return 0;
+}
+
 static int cmd_viewtarg(char *args)
 {
 	if(!args) {
@@ -195,6 +216,24 @@ static int cmd_viewtarg(char *args)
 		fprintf(stderr, "invalid argument to viewtarg: %s\n", args);
 		return -1;
 	}
+
+	userot = 0;
+	return 0;
+}
+
+static int cmd_viewrot(char *args)
+{
+	if(!args) {
+		fprintf(stderr, "missing argument from viewrot command\n");
+		return -1;
+	}
+
+	if(sscanf(args, "%f %f %f", &viewrot.x, &viewrot.y, &viewrot.z) != 3) {
+		fprintf(stderr, "invalid argument to viewrot: %s\n", args);
+		return -1;
+	}
+
+	userot = 1;
 	return 0;
 }
 
@@ -326,15 +365,19 @@ static int cmd_lightpos(char *args)
 
 static int cmd_render(char *args)
 {
+	int i;
 	float xform[16];
 	struct timeval tv, tv0;
 	cgm_vec3 vdir, up = {0, 1, 0};
 	struct octnode *orig_octree = 0;
 
 	if(!framebuf.pixels) {
-		if(!(framebuf.pixels = malloc(framebuf.width * framebuf.height * sizeof *framebuf.pixels))) {
+		if(!(framebuf.pixels = calloc(framebuf.width * framebuf.height, sizeof *framebuf.pixels))) {
 			fprintf(stderr, "failed to allocate %dx%d framebuffer\n", framebuf.width, framebuf.height);
 			return -1;
+		}
+		for(i=0; i<framebuf.width * framebuf.height; i++) {
+			framebuf.pixels[i].w = 1.0f;
 		}
 		rendfb = &framebuf;
 		tilex = tiley = 0;
@@ -354,11 +397,20 @@ static int cmd_render(char *args)
 		rend_perspective(fovrad, maxdist ? maxdist : 100.0f);
 	}
 
-	vdir = viewtarg; cgm_vsub(&vdir, &viewpos);
-	if(vdir.x * vdir.x + vdir.z * vdir.z < 1e-4) {
-		cgm_vcons(&up, 0, 0, 1);
+	if(userot) {
+		cgm_midentity(xform);
+		cgm_mrotate_x(xform, cgm_deg_to_rad(viewrot.x));
+		cgm_mrotate_y(xform, cgm_deg_to_rad(viewrot.y));
+		cgm_mrotate_z(xform, cgm_deg_to_rad(viewrot.z));
+		cgm_mtranslate(xform, viewpos.x, viewpos.y, viewpos.z);
+	} else {
+		vdir = viewtarg; cgm_vsub(&vdir, &viewpos);
+		if(vdir.x * vdir.x + vdir.z * vdir.z < 1e-4) {
+			cgm_vcons(&up, 0, 0, 1);
+		}
+		cgm_mlookat(xform, &viewpos, &viewtarg, &up);
 	}
-	cgm_mlookat(xform, &viewpos, &viewtarg, &up);
+	cgm_mpretranslate(xform, viewpan.x, viewpan.y, viewpan.z);
 	rend_view(xform);
 
 	if(!dynarr_empty(vis.meshes)) {

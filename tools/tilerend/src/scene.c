@@ -315,6 +315,7 @@ struct rendimage *load_texture(const char *fname, int srgb)
 	printf("loading texture: %s\n", fname);
 	img_init(&img);
 	if(img_load(&img, fname) == -1) {
+		fprintf(stderr, "load_texture: failed to load image: %s\n", fname);
 		return 0;
 	}
 	if(img_is_float(&img)) {
@@ -601,34 +602,64 @@ int ray_triangle(struct meshtri *tri, struct ray *ray, struct rayhit *hit)
 	return 1;
 }
 
-#define SLABCHECK(dim)	\
-	do { \
-		if(ray->dir.dim == 0.0f) { \
-			if(ray->origin.dim < box->vmin.dim || ray->origin.dim > box->vmax.dim) { \
-				return 0; \
-			} \
-		} \
-		t0 = (box->vmin.dim - ray->origin.dim) * ray->invdir.dim;	\
-		t1 = (box->vmax.dim - ray->origin.dim) * ray->invdir.dim;	\
-		if(t1 < t0) {	\
-			tmp = t0;	\
-			t0 = t1;	\
-			t1 = tmp;	\
-		}	\
-		if(t0 > tmin) tmin = t0; \
-		if(t1 < tmax) tmax = t1; \
-		if(tmax < tmin) return 0; \
-		if(tmax < 0.0f) return 0; \
-	} while(0)
-
 int ray_aabb(struct aabox *box, struct ray *ray)
 {
 	float t0, t1, tmp;
 	float tmin = -FLT_MAX, tmax = FLT_MAX;
 
-	SLABCHECK(x);
-	SLABCHECK(y);
-	SLABCHECK(z);
+	if(ray->dir.x == 0.0f) {
+		if(ray->origin.x < box->vmin.x || ray->origin.x > box->vmax.x) {
+			return 0;
+		}
+	} else {
+		t0 = (box->vmin.x - ray->origin.x) * ray->invdir.x;
+		t1 = (box->vmax.x - ray->origin.x) * ray->invdir.x;
+		if(t1 < t0) {
+			tmp = t0;
+			t0 = t1;
+			t1 = tmp;
+		}
+		if(t0 > tmin) tmin = t0;
+		if(t1 < tmax) tmax = t1;
+		if(tmax < tmin) return 0;
+		if(tmax < 0.0f) return 0;
+	}
+
+	if(ray->dir.y == 0.0f) {
+		if(ray->origin.y < box->vmin.y || ray->origin.y > box->vmax.y) {
+			return 0;
+		}
+	} else {
+		t0 = (box->vmin.y - ray->origin.y) * ray->invdir.y;
+		t1 = (box->vmax.y - ray->origin.y) * ray->invdir.y;
+		if(t1 < t0) {
+			tmp = t0;
+			t0 = t1;
+			t1 = tmp;
+		}
+		if(t0 > tmin) tmin = t0;
+		if(t1 < tmax) tmax = t1;
+		if(tmax < tmin) return 0;
+		if(tmax < 0.0f) return 0;
+	}
+
+	if(ray->dir.z == 0.0f) {
+		if(ray->origin.z < box->vmin.z || ray->origin.z > box->vmax.z) {
+			return 0;
+		}
+	} else {
+		t0 = (box->vmin.z - ray->origin.z) * ray->invdir.z;
+		t1 = (box->vmax.z - ray->origin.z) * ray->invdir.z;
+		if(t1 < t0) {
+			tmp = t0;
+			t0 = t1;
+			t1 = tmp;
+		}
+		if(t0 > tmin) tmin = t0;
+		if(t1 < tmax) tmax = t1;
+		if(tmax < tmin) return 0;
+		if(tmax < 0.0f) return 0;
+	}
 
 	return 1;
 }

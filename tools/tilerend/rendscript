@@ -4,9 +4,9 @@ imagesize 512x512
 tilesize 512x512
 
 visclear
-visadd floor
-visadd suz
-visadd torus
+#visadd floor
+#visadd suz
+#visadd torus
 
 lightdir 2 2.5 3
 
