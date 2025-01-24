@@ -26,6 +26,7 @@ static int cmd_lightcolor(char *args);
 static int cmd_lightdir(char *args);
 static int cmd_lightpos(char *args);
 static int cmd_render(char *args);
+static int cmd_tile(char *args);
 static int cmd_visclear(char *args);
 static int cmd_visadd(char *args);
 
@@ -50,6 +51,7 @@ static struct {
 	{"lightdir", cmd_lightdir},
 	{"lightpos", cmd_lightpos},
 	{"render", cmd_render},
+	{"tile", cmd_tile},
 	{"visclear", cmd_visclear},
 	{"visadd", cmd_visadd},
 	{0, 0}
@@ -63,6 +65,7 @@ static int ltshad = 1;
 static cgm_vec3 viewpan;
 static cgm_vec3 viewrot;
 static int userot;
+static char *tilename;
 
 int parse_cmd(const char *cmdline)
 {
@@ -365,7 +368,6 @@ static int cmd_lightpos(char *args)
 
 static int cmd_render(char *args)
 {
-	int i;
 	float xform[16];
 	struct timeval tv, tv0;
 	cgm_vec3 vdir, up = {0, 1, 0};
@@ -375,9 +377,6 @@ static int cmd_render(char *args)
 		if(!(framebuf.pixels = calloc(framebuf.width * framebuf.height, sizeof *framebuf.pixels))) {
 			fprintf(stderr, "failed to allocate %dx%d framebuffer\n", framebuf.width, framebuf.height);
 			return -1;
-		}
-		for(i=0; i<framebuf.width * framebuf.height; i++) {
-			framebuf.pixels[i].w = 1.0f;
 		}
 		rendfb = &framebuf;
 		tilex = tiley = 0;
@@ -415,28 +414,37 @@ static int cmd_render(char *args)
 
 	if(!dynarr_empty(vis.meshes)) {
 		if(!vis.octree) {
-			printf("building octree for visible set (%d meshes)\n", dynarr_size(vis.meshes));
+			if(opt_verbose) {
+				printf("building octree for visible set (%d meshes)\n", dynarr_size(vis.meshes));
+			}
 			if(build_octree(&vis) == -1) {
 				fprintf(stderr, "failed to build octree for visible set\n");
 				return -1;
 			}
-			print_octstats(&vis);
+			if(opt_verbose > 1) {
+				print_octstats(&vis);
+			}
 		}
 
 		orig_octree = scn.octree;
 		scn.octree = vis.octree;
 	} else {
 		if(!scn.octree) {
-			printf("bulding scene octree (%d meshes)\n", dynarr_size(scn.meshes));
+			if(opt_verbose) {
+				printf("bulding scene octree (%d meshes)\n", dynarr_size(scn.meshes));
+			}
 			if(build_octree(&scn) == -1) {
 				fprintf(stderr, "failed to build scene octree\n");
 				return -1;
 			}
-			print_octstats(&scn);
+			if(opt_verbose > 1) {
+				print_octstats(&scn);
+			}
 		}
 	}
 
-	printf("render %dx%d at %d,%d ... ", tilewidth, tileheight, tilex, tiley);
+	printf("render %s %dx%d at %d,%d ... ", tilename ? tilename : "tile",
+			tilewidth, tileheight, tilex, tiley);
 	fflush(stdout);
 
 	gettimeofday(&tv0, 0);
@@ -454,6 +462,14 @@ static int cmd_render(char *args)
 		tilex = 0;
 		tiley += tileheight;
 	}
+	return 0;
+}
+
+static int cmd_tile(char *args)
+{
+	cmd_visclear(0);
+	free(tilename);
+	tilename = strdup(args);
 	return 0;
 }
 

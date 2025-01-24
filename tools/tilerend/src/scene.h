@@ -8,7 +8,7 @@ struct rendimage;
 
 struct material {
 	char *name;
-	cgm_vec3 kd, ks;
+	cgm_vec3 kd, ks, ke;
 	float shin;
 	struct rendimage *tex_diffuse;
 	struct rendimage *tex_normal;

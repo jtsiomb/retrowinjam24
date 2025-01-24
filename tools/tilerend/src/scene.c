@@ -2,6 +2,7 @@
 #include <limits.h>
 #include <float.h>
 #include <assert.h>
+#include "tilerend.h"
 #include "scene.h"
 #include "rend.h"
 #include "dynarr.h"
@@ -19,7 +20,7 @@ static void init_aabox(struct aabox *box);
 static void expand_aabox(struct aabox *box, const cgm_vec3 *pt);
 int aabox_tri_test(const struct aabox *box, const struct meshtri *tri);
 
-static struct material defmtl = {"default", {0.8, 0.2, 0.75}, {0.4, 0.4, 0.4}, 50.0f, 0, 0};
+static struct material defmtl = {"default", {0.8, 0.2, 0.75}, {0.4, 0.4, 0.4}, {0}, 50.0f, 0, 0};
 
 int init_scene(struct scene *scn)
 {
@@ -102,7 +103,9 @@ int load_scene(struct scene *scn, const char *fname)
 	static const cgm_vec2 defuv;
 	unsigned long faceid = 0;
 
-	printf("loading: %s ...\n", fname);
+	if(opt_verbose) {
+		printf("loading: %s ...\n", fname);
+	}
 
 	if(!(mf = mf_alloc()) || mf_load(mf, fname) == -1) {
 		fprintf(stderr, "load_scene: failed to load: %s\n", fname);
@@ -117,6 +120,7 @@ int load_scene(struct scene *scn, const char *fname)
 		}
 		mtl->kd = *(cgm_vec3*)&mfmtl->attr[MF_COLOR].val;
 		mtl->ks = *(cgm_vec3*)&mfmtl->attr[MF_SPECULAR].val;
+		mtl->ke = *(cgm_vec3*)&mfmtl->attr[MF_EMISSIVE].val;
 		mtl->shin = mfmtl->attr[MF_SHININESS].val.x;
 
 		if(mfmtl->attr[MF_COLOR].map.name) {
@@ -312,7 +316,7 @@ struct rendimage *load_texture(const char *fname, int srgb)
 	struct rendimage *ri;
 	cgm_vec4 *pptr;
 
-	printf("loading texture: %s\n", fname);
+	if(opt_verbose) printf("loading texture: %s\n", fname);
 	img_init(&img);
 	if(img_load(&img, fname) == -1) {
 		fprintf(stderr, "load_texture: failed to load image: %s\n", fname);

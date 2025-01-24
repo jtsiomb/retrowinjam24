@@ -127,6 +127,8 @@ static void shade(cgm_vec4 *color, struct scene *scn, struct rayhit *hit, int it
 	cgm_vec4 texel;
 	float tbn[16];
 
+	cgm_wcons(color, mtl->ke.x, mtl->ke.y, mtl->ke.z, 1.0f);
+
 	if(mtl->tex_normal) {
 		cons_tbn_matrix(tbn, hit);
 		texlookup(&texel, mtl->tex_normal, hit->uv);
@@ -143,10 +145,9 @@ static void shade(cgm_vec4 *color, struct scene *scn, struct rayhit *hit, int it
 	} else {
 		basecol = mtl->kd;
 	}
-	color->x = basecol.x * 0.05f;
-	color->y = basecol.y * 0.05f;
-	color->z = basecol.z * 0.05f;
-	color->w = 1.0f;
+	color->x += basecol.x * 0.05f;
+	color->y += basecol.y * 0.05f;
+	color->z += basecol.z * 0.05f;
 
 	numlights = dynarr_size(scn->lights);
 	for(i=0; i<numlights; i++) {

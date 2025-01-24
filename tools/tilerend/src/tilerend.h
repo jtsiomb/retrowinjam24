@@ -5,6 +5,7 @@
 #include "rend.h"
 #include "scene.h"
 
+extern int opt_verbose;
 extern struct scene scn, vis;
 extern char *outfname;
 extern struct rendimage framebuf;

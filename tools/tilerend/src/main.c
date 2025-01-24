@@ -8,6 +8,7 @@
 #include "tilerend.h"
 #include "script.h"
 
+int opt_verbose;
 struct scene scn, vis;
 char *outfname;
 struct rendimage framebuf;
@@ -36,7 +37,7 @@ int main(int argc, char **argv)
 	}
 
 	/* insane defaults */
-	outfname = strdup("output.png");
+	if(!outfname) outfname = strdup("output.png");
 	framebuf.width = framebuf.height = 512;
 	tilewidth = tileheight = 512;
 	cgm_vcons(&viewpos, 0, 0, 0);
@@ -73,12 +74,37 @@ static const char *usage = "usage %s [options] <file>\n"
 static int parse_args(int argc, char **argv)
 {
 	int i;
+	char *s;
 
 	for(i=1; i<argc; i++) {
 		if(argv[i][0] == '-') {
-			if(strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "-help") == 0) {
+			if(argv[i][1] == 'v') {
+				int vcount = 0;
+				s = argv[i] + 1;
+				while(*s++ == 'v') vcount++;
+				if(!*s) {
+					opt_verbose = vcount;
+					continue;
+				}
+			}
+
+			if(strcmp(argv[i], "-o") == 0) {
+				if(!argv[++i]) {
+					fprintf(stderr, "-o must be followed by a file path\n");
+					return -1;
+				}
+				if(!(outfname = strdup(argv[i]))) {
+					fprintf(stderr, "failed to allocate output filename buffer\n");
+					return -1;
+				}
+
+			} else if(strcmp(argv[i], "-verbose") == 0) {
+				opt_verbose++;
+
+			} else if(strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "-help") == 0) {
 				printf(usage, argv[0]);
 				exit(0);
+
 			} else {
 				fprintf(stderr, "invalid option: %s\n", argv[i]);
 				return -1;
