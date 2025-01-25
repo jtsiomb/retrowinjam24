@@ -1,7 +1,10 @@
 #include <stdio.h>
+#include <assert.h>
 #include "rend.h"
 #include "scene.h"
 #include "dynarr.h"
+
+#undef DBG_SDR_NORMALS
 
 int dbgpixel;
 
@@ -12,26 +15,43 @@ static float aspect;
 static float vpdist, raymag, orthosz, zmin, zmax;
 static float view_xform[16];
 static int max_iter = 5;
-static void (*primray)(struct ray*, int, int);
+static void (*primray)(struct ray*, int, int, int);
+static int num_samples = 1;
+static cgm_vec2 *samples;
+static unsigned int optbits;
 
 
-static void raytrace(cgm_vec4 *color, struct ray *ray, struct scene *scn, int iter);
+static int raytrace(cgm_vec4 *color, struct ray *ray, struct scene *scn, int iter);
 static void shade(cgm_vec4 *color, struct scene *scn, struct rayhit *hit, int iter);
-static void texlookup(cgm_vec4 *color, struct rendimage *img, cgm_vec2 uv);
+static void texlookup(cgm_vec4 *color, struct rendimage *img, cgm_vec2 uv, cgm_vec2 duv);
 static void calc_invdir(struct ray *ray);
-static void perspray(struct ray *ray, int x, int y);
-static void orthoray(struct ray *ray, int x, int y);
+static void perspray(struct ray *ray, int x, int y, int n);
+static void orthoray(struct ray *ray, int x, int y, int n);
+static void calc_sample_pos(int sidx, cgm_vec2 *pos);
 
 
 int rend_init(void)
 {
 	rend_perspective(cgm_deg_to_rad(50), 1000.0f);
 	cgm_midentity(view_xform);
+	num_samples = 1;
 	return 0;
 }
 
 void rend_cleanup(void)
 {
+	free(samples);
+	samples = 0;
+}
+
+void rend_enable(unsigned int opt)
+{
+	optbits |= 1 << opt;
+}
+
+void rend_disable(unsigned int opt)
+{
+	optbits &= ~(1 << opt);
 }
 
 void rend_viewport(int x, int y, int width, int height)
@@ -64,37 +84,96 @@ void rend_view(float *xform)
 	memcpy(view_xform, xform, sizeof view_xform);
 }
 
+void rend_samples(int n)
+{
+	num_samples = n;
+	free(samples);
+	samples = 0;
+}
+
 void render(struct scene *scn)
 {
-	int i, j;
+	int i, j, k, num_hit;
+	float s;
 	struct ray ray;
 	cgm_vec4 color;
 	cgm_vec4 *pixels = rendfb->pixels + vp.y * rendfb->width + vp.x;
 
+	assert(num_samples > 0);
+	s = 1.0f / (float)num_samples;
+
+	if(!samples) {
+		if(!(samples = malloc(num_samples * sizeof *samples))) {
+			fprintf(stderr, "failed to allocate subpixels sample positions\n");
+			return;
+		}
+		for(i=0; i<num_samples; i++) {
+			calc_sample_pos(i, samples + i);
+		}
+	}
+
 	for(i=0; i<vp.height; i++) {
 		for(j=0; j<vp.width; j++) {
-			primray(&ray, j, i);
-			raytrace(&color, &ray, scn, 0);
+			pixels->x = pixels->y = pixels->z = pixels->w = 0.0f;
 
-			pixels->x = pow(color.x, 1.0f / 2.2f);
-			pixels->y = pow(color.y, 1.0f / 2.2f);
-			pixels->z = pow(color.z, 1.0f / 2.2f);
-			pixels->w = color.w;
+			if(optbits & (1 << REND_AAMASK)) {
+				/* regular coverage-based alpha */
+				for(k=0; k<num_samples; k++) {
+					primray(&ray, j, i, k);
+					raytrace(&color, &ray, scn, 0);
+
+					pixels->x += color.x;
+					pixels->y += color.y;
+					pixels->z += color.z;
+					pixels->w += color.w;
+				}
+
+				pixels->x = pow(pixels->x * s, 1.0f / 2.2f);
+				pixels->y = pow(pixels->y * s, 1.0f / 2.2f);
+				pixels->z = pow(pixels->z * s, 1.0f / 2.2f);
+				pixels->w *= s;
+
+			} else {
+				/* binary alpha mask, and discard samples that don't hit */
+				num_hit = 0;
+
+				for(k=0; k<num_samples; k++) {
+					primray(&ray, j, i, k);
+					if(raytrace(&color, &ray, scn, 0)) {
+						num_hit++;
+						pixels->x += color.x;
+						pixels->y += color.y;
+						pixels->z += color.z;
+					}
+				}
+
+				if(num_hit) {
+					s = 1.0f / (float)num_hit;
+					pixels->x = pow(pixels->x * s, 1.0f / 2.2f);
+					pixels->y = pow(pixels->y * s, 1.0f / 2.2f);
+					pixels->z = pow(pixels->z * s, 1.0f / 2.2f);
+					pixels->w = 1.0f;
+				} else {
+					pixels->w = 0.0f;
+				}
+			}
 			pixels++;
 		}
 		pixels += rendfb->width - vp.width;
 	}
 }
 
-static void raytrace(cgm_vec4 *color, struct ray *ray, struct scene *scn, int iter)
+static int raytrace(cgm_vec4 *color, struct ray *ray, struct scene *scn, int iter)
 {
 	struct rayhit hit;
 
 	if(iter >= max_iter || !ray_scene(scn, ray, &hit)) {
 		color->x = color->y = color->z = color->w = 0;
-	} else {
-		shade(color, scn, &hit, iter);
+		return 0;
 	}
+
+	shade(color, scn, &hit, iter);
+	return 1;
 }
 
 static void cons_tbn_matrix(float *tbn, struct rayhit *hit)
@@ -126,21 +205,30 @@ static void shade(cgm_vec4 *color, struct scene *scn, struct rayhit *hit, int it
 	cgm_vec3 basecol;
 	cgm_vec4 texel;
 	float tbn[16];
+	cgm_vec2 duv = {0, 0};
 
 	cgm_wcons(color, mtl->ke.x, mtl->ke.y, mtl->ke.z, 1.0f);
 
 	if(mtl->tex_normal) {
 		cons_tbn_matrix(tbn, hit);
-		texlookup(&texel, mtl->tex_normal, hit->uv);
+		texlookup(&texel, mtl->tex_normal, hit->uv, duv);
 
 		cgm_vcons(&norm, texel.x * 2.0f - 1.0f, texel.y * 2.0f - 1.0f, texel.z * 2.0f - 1.0f);
 		cgm_vmul_m3v3(&norm, tbn);
 	} else {
 		norm = hit->norm;
 	}
+	cgm_vnormalize(&norm);
+
+#ifdef DBG_SDR_NORMALS
+	color->x = norm.x * 0.5 + 0.5;
+	color->y = norm.y * 0.5 + 0.5;
+	color->z = norm.z * 0.5 + 0.5;
+	return;
+#endif
 
 	if(mtl->tex_diffuse) {
-		texlookup(&texel, mtl->tex_diffuse, hit->uv);
+		texlookup(&texel, mtl->tex_diffuse, hit->uv, duv);
 		basecol = *(cgm_vec3*)&texel;
 	} else {
 		basecol = mtl->kd;
@@ -203,7 +291,7 @@ static void shade(cgm_vec4 *color, struct scene *scn, struct rayhit *hit, int it
 	}
 }
 
-static void texlookup(cgm_vec4 *color, struct rendimage *img, cgm_vec2 uv)
+static void texlookup(cgm_vec4 *color, struct rendimage *img, cgm_vec2 uv, cgm_vec2 duv)
 {
 	int tx = (int)(fmod(uv.x, 1.0f) * (float)img->width);
 	int ty = (int)(fmod(uv.y, 1.0f) * (float)img->height);
@@ -217,12 +305,15 @@ static void calc_invdir(struct ray *ray)
 	ray->invdir.z = ray->dir.z == 0.0f ? 0.0f : 1.0f / ray->dir.z;
 }
 
-static void perspray(struct ray *ray, int x, int y)
+static void perspray(struct ray *ray, int x, int y, int n)
 {
+	float fx = (float)x + samples[n].x;
+	float fy = (float)y + samples[n].y;
+
 	ray->origin.x = ray->origin.y = ray->origin.z = 0.0f;
 
-	ray->dir.x = ((float)x / (float)vp.width - 0.5f) * aspect;
-	ray->dir.y = 0.5f - (float)y / (float)vp.height;
+	ray->dir.x = (fx / (float)vp.width - 0.5f) * aspect;
+	ray->dir.y = 0.5f - fy / (float)vp.height;
 	ray->dir.z = -vpdist;
 	cgm_vnormalize(&ray->dir);
 	cgm_vscale(&ray->dir, raymag);
@@ -233,10 +324,13 @@ static void perspray(struct ray *ray, int x, int y)
 	calc_invdir(ray);
 }
 
-static void orthoray(struct ray *ray, int x, int y)
+static void orthoray(struct ray *ray, int x, int y, int n)
 {
-	ray->origin.x = ((float)x / (float)vp.width - 0.5f) * orthosz * aspect;
-	ray->origin.y = (0.5f - (float)y / (float)vp.height) * orthosz;
+	float fx = (float)x + samples[n].x;
+	float fy = (float)y + samples[n].y;
+
+	ray->origin.x = (fx / (float)vp.width - 0.5f) * orthosz * aspect;
+	ray->origin.y = (0.5f - fy / (float)vp.height) * orthosz;
 	ray->origin.z = zmax;
 
 	ray->dir.x = ray->dir.y = 0;
@@ -246,4 +340,30 @@ static void orthoray(struct ray *ray, int x, int y)
 	cgm_vmul_m3v3(&ray->dir, view_xform);
 
 	calc_invdir(ray);
+}
+
+static void calc_sample_pos_rec(int sidx, float xsz, float ysz, cgm_vec2 *pos)
+{
+	int quadrant;
+	static const cgm_vec2 subpt[4] = {
+		{-0.25, -0.25}, {0.25, -0.25}, {-0.25, 0.25}, {0.25, 0.25}
+	};
+
+	if(!sidx) {
+		pos->x += (float)rand() / (float)RAND_MAX * xsz - xsz / 2.0f;
+		pos->y += (float)rand() / (float)RAND_MAX * ysz - ysz / 2.0f;
+		return;
+	}
+
+	quadrant = (sidx - 1) & 3;
+	pos->x += subpt[quadrant].x * xsz;
+	pos->y += subpt[quadrant].y * ysz;
+
+	calc_sample_pos_rec((sidx - 1) / 4, xsz / 2.0f, ysz / 2.0f, pos);
+}
+
+static void calc_sample_pos(int sidx, cgm_vec2 *pos)
+{
+	pos->x = pos->y = 0.0f;
+	calc_sample_pos_rec(sidx, 1.0f, 1.0f, pos);
 }

@@ -26,6 +26,7 @@ static int cmd_lightcolor(char *args);
 static int cmd_lightdir(char *args);
 static int cmd_lightpos(char *args);
 static int cmd_render(char *args);
+static int cmd_samples(char *args);
 static int cmd_tile(char *args);
 static int cmd_visclear(char *args);
 static int cmd_visadd(char *args);
@@ -51,6 +52,7 @@ static struct {
 	{"lightdir", cmd_lightdir},
 	{"lightpos", cmd_lightpos},
 	{"render", cmd_render},
+	{"samples", cmd_samples},
 	{"tile", cmd_tile},
 	{"visclear", cmd_visclear},
 	{"visadd", cmd_visadd},
@@ -110,6 +112,8 @@ static char *clean_line(char *s)
 static char *next_token(char **line)
 {
 	char *tok, *s = *line;
+
+	if(!s) return 0;
 
 	while(*s && isspace(*s)) s++;
 	if(!*s) {
@@ -461,6 +465,42 @@ static int cmd_render(char *args)
 	if(tilex + tilewidth > framebuf.width) {
 		tilex = 0;
 		tiley += tileheight;
+	}
+	return 0;
+}
+
+static int cmd_samples(char *args)
+{
+	int n = -1, aamask = 0;
+	char *token;
+
+	if(!args) {
+		fprintf(stderr, "missing arguments from samples command\n");
+		return -1;
+	}
+
+	while((token = next_token(&args))) {
+		if(token[0] == '-') {
+			if(strcmp(token, "-aamask") == 0) {
+				aamask = 1;
+			} else {
+				fprintf(stderr, "invalid option to samples command: %s\n", token);
+				return -1;
+			}
+
+		} else {
+			if(n > 0 || (n = atoi(token)) <= 0 || n > 4096) {
+				fprintf(stderr, "invalid argument to samples command: %s\n", token);
+				return -1;
+			}
+		}
+	}
+
+	rend_samples(n);
+	if(aamask) {
+		rend_enable(REND_AAMASK);
+	} else {
+		rend_disable(REND_AAMASK);
 	}
 	return 0;
 }

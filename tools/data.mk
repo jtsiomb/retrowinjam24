@@ -1,7 +1,7 @@
 .PHONY: all
 all: data/tileset.png data/test.fnt
 
-data/tileset.png: datasrc/rendscript datasrc/dungeon.obj
+data/tileset.png: datasrc/rendscript datasrc/dungeon.obj tools/tilerend/tilerend
 	tools/tilerend/tilerend -o $@ $<
 
 data/test.fnt: /usr/share/fonts/truetype/ubuntu/Ubuntu-R.ttf

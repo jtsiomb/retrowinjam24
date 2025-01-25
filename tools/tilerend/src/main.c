@@ -8,7 +8,7 @@
 #include "tilerend.h"
 #include "script.h"
 
-int opt_verbose;
+int opt_verbose, opt_nsamples = 1;
 struct scene scn, vis;
 char *outfname;
 struct rendimage framebuf;
@@ -69,6 +69,7 @@ int main(int argc, char **argv)
 
 static const char *usage = "usage %s [options] <file>\n"
 	"Options:\n"
+	" -v,-verbose: verbose output, use multiple 'v's for more verbosity\n"
 	" -h,-help: print usage and exit\n";
 
 static int parse_args(int argc, char **argv)
