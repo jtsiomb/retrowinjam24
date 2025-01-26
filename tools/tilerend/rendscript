@@ -1,9 +1,9 @@
 load test.obj
 image output.png
+samples 24 -aamask
 imagesize 512x512
-tilesize 512x512
+tilesize 256x256
 
-visclear
 #visadd floor
 #visadd suz
 #visadd torus
@@ -16,4 +16,7 @@ viewtarg 0 0 0
 #ortho 8 0 16
 #viewpos 0 0 0
 #viewtarg 1 -1 -1
+render
+
+viewpos 5 7 11
 render

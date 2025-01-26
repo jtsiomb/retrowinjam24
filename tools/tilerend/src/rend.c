@@ -3,12 +3,29 @@
 #include "rend.h"
 #include "scene.h"
 #include "dynarr.h"
+#include "tpool.h"
+
+#ifdef USE_THREADS
+#define BLKSZ	16
+
+struct block {
+	int x, y, width, height;
+};
+
+static struct thread_pool *tpool;
+static struct block *blklist;
+static int numblk;
+#endif
+
 
 #undef DBG_SDR_NORMALS
 
 int dbgpixel;
+extern int opt_verbose;
 
 struct rendimage *rendfb;
+
+static struct scene *scn;
 
 static struct rect vp;
 static float aspect;
@@ -17,6 +34,7 @@ static float view_xform[16];
 static int max_iter = 5;
 static void (*primray)(struct ray*, int, int, int);
 static int num_samples = 1;
+static float sample_scale = 1.0f;
 static cgm_vec2 *samples;
 static unsigned int optbits;
 
@@ -34,7 +52,17 @@ int rend_init(void)
 {
 	rend_perspective(cgm_deg_to_rad(50), 1000.0f);
 	cgm_midentity(view_xform);
-	num_samples = 1;
+	rend_samples(1);
+
+#ifdef USE_THREADS
+	if(opt_verbose) {
+		printf("creating thread pool (%d processors detected)\n", tpool_num_processors());
+	}
+	if(!(tpool = tpool_create(0))) {
+		fprintf(stderr, "failed to create thread pool\n");
+		return -1;
+	}
+#endif
 	return 0;
 }
 
@@ -42,6 +70,10 @@ void rend_cleanup(void)
 {
 	free(samples);
 	samples = 0;
+
+#ifdef USE_THREADS
+	tpool_destroy(tpool);
+#endif
 }
 
 void rend_enable(unsigned int opt)
@@ -56,6 +88,13 @@ void rend_disable(unsigned int opt)
 
 void rend_viewport(int x, int y, int width, int height)
 {
+#ifdef USE_THREADS
+	if(width != vp.width || height != vp.height) {
+		free(blklist);
+		blklist = 0;
+	}
+#endif
+
 	vp.x = x;
 	vp.y = y;
 	vp.width = width;
@@ -86,81 +125,162 @@ void rend_view(float *xform)
 
 void rend_samples(int n)
 {
+	if(n <= 0) return;
+
 	num_samples = n;
+	sample_scale = 1.0f / (float)n;
 	free(samples);
 	samples = 0;
 }
 
-void render(struct scene *scn)
+static int prepare_render(void)
 {
-	int i, j, k, num_hit;
-	float s;
-	struct ray ray;
-	cgm_vec4 color;
-	cgm_vec4 *pixels = rendfb->pixels + vp.y * rendfb->width + vp.x;
-
-	assert(num_samples > 0);
-	s = 1.0f / (float)num_samples;
+	int i;
 
 	if(!samples) {
 		if(!(samples = malloc(num_samples * sizeof *samples))) {
 			fprintf(stderr, "failed to allocate subpixels sample positions\n");
-			return;
+			return -1;
 		}
 		for(i=0; i<num_samples; i++) {
 			calc_sample_pos(i, samples + i);
 		}
 	}
 
+#ifdef USE_THREADS
+	if(!blklist) {
+		int j, xblk, yblk;
+		struct block *blk;
+
+		xblk = (vp.width + BLKSZ - 1) / BLKSZ;
+		yblk = (vp.height + BLKSZ - 1) / BLKSZ;
+		numblk = xblk * yblk;
+		if(!(blklist = malloc(numblk * sizeof *blklist))) {
+			fprintf(stderr, "failed to allocate block list (%d %dx%d blocks)\n",
+					numblk, BLKSZ, BLKSZ);
+			return -1;
+		}
+		blk = blklist;
+
+		for(i=0; i<yblk; i++) {
+			int y = i * BLKSZ;
+			int height = i < yblk - 1 ? BLKSZ : vp.height - y;
+			for(j=0; j<xblk; j++) {
+				blk->x = j * BLKSZ;
+				blk->y = y;
+				blk->width = j < xblk - 1 ? BLKSZ : vp.width - blk->x;
+				blk->height = height;
+				blk++;
+			}
+		}
+	}
+#endif
+	return 0;
+}
+
+static void render_pixel(cgm_vec4 *pixel, int x, int y)
+{
+	int i, num_hit;
+	struct ray ray;
+	cgm_vec4 color;
+
+	pixel->x = pixel->y = pixel->z = pixel->w = 0.0f;
+
+	if(optbits & (1 << REND_AAMASK)) {
+		/* regular coverage-based alpha */
+		for(i=0; i<num_samples; i++) {
+			primray(&ray, x, y, i);
+			raytrace(&color, &ray, scn, 0);
+
+			pixel->x += color.x;
+			pixel->y += color.y;
+			pixel->z += color.z;
+			pixel->w += color.w;
+		}
+
+		pixel->x = pow(pixel->x * sample_scale, 1.0f / 2.2f);
+		pixel->y = pow(pixel->y * sample_scale, 1.0f / 2.2f);
+		pixel->z = pow(pixel->z * sample_scale, 1.0f / 2.2f);
+		pixel->w *= sample_scale;
+
+	} else {
+		/* binary alpha mask, and discard samples that don't hit */
+		num_hit = 0;
+
+		for(i=0; i<num_samples; i++) {
+			primray(&ray, x, y, i);
+			if(raytrace(&color, &ray, scn, 0)) {
+				num_hit++;
+				pixel->x += color.x;
+				pixel->y += color.y;
+				pixel->z += color.z;
+			}
+		}
+
+		if(num_hit) {
+			float s = 1.0f / (float)num_hit;
+			pixel->x = pow(pixel->x * s, 1.0f / 2.2f);
+			pixel->y = pow(pixel->y * s, 1.0f / 2.2f);
+			pixel->z = pow(pixel->z * s, 1.0f / 2.2f);
+			pixel->w = 1.0f;
+		} else {
+			pixel->w = 0.0f;
+		}
+	}
+}
+
+#ifdef USE_THREADS
+static void render_worker(void *data)
+{
+	int i, j, x, y;
+	struct block *blk = data;
+	cgm_vec4 *pixptr;
+
+	y = vp.y + blk->y;
+	pixptr = rendfb->pixels + y * rendfb->width + vp.x + blk->x;
+	printf("blk %d,%d (offs: %d) (vp: %d,%d)\n", blk->x, blk->y, y * rendfb->width + vp.x + blk->x, vp.x, vp.y);
+
+	for(i=0; i<blk->height; i++) {
+		x = vp.x + blk->x;
+		for(j=0; j<blk->width; j++) {
+			render_pixel(pixptr++, x++, y);
+		}
+		y++;
+		pixptr += rendfb->width - blk->width;
+	}
+}
+#endif
+
+void render(struct scene *scene)
+{
+#ifdef USE_THREADS
+	int i;
+#else
+	int i, j;
+	cgm_vec4 *pixels;
+#endif
+
+	if(prepare_render() == -1) {
+		return;
+	}
+	scn = scene;
+
+#ifdef USE_THREADS
+	tpool_begin_batch(tpool);
+	for(i=0; i<numblk; i++) {
+		tpool_enqueue(tpool, blklist + i, render_worker, 0);
+	}
+	tpool_end_batch(tpool);
+	tpool_wait(tpool);
+#else
+	pixels = rendfb->pixels + vp.y * rendfb->width + vp.x;
 	for(i=0; i<vp.height; i++) {
 		for(j=0; j<vp.width; j++) {
-			pixels->x = pixels->y = pixels->z = pixels->w = 0.0f;
-
-			if(optbits & (1 << REND_AAMASK)) {
-				/* regular coverage-based alpha */
-				for(k=0; k<num_samples; k++) {
-					primray(&ray, j, i, k);
-					raytrace(&color, &ray, scn, 0);
-
-					pixels->x += color.x;
-					pixels->y += color.y;
-					pixels->z += color.z;
-					pixels->w += color.w;
-				}
-
-				pixels->x = pow(pixels->x * s, 1.0f / 2.2f);
-				pixels->y = pow(pixels->y * s, 1.0f / 2.2f);
-				pixels->z = pow(pixels->z * s, 1.0f / 2.2f);
-				pixels->w *= s;
-
-			} else {
-				/* binary alpha mask, and discard samples that don't hit */
-				num_hit = 0;
-
-				for(k=0; k<num_samples; k++) {
-					primray(&ray, j, i, k);
-					if(raytrace(&color, &ray, scn, 0)) {
-						num_hit++;
-						pixels->x += color.x;
-						pixels->y += color.y;
-						pixels->z += color.z;
-					}
-				}
-
-				if(num_hit) {
-					s = 1.0f / (float)num_hit;
-					pixels->x = pow(pixels->x * s, 1.0f / 2.2f);
-					pixels->y = pow(pixels->y * s, 1.0f / 2.2f);
-					pixels->z = pow(pixels->z * s, 1.0f / 2.2f);
-					pixels->w = 1.0f;
-				} else {
-					pixels->w = 0.0f;
-				}
-			}
-			pixels++;
+			render_pixel(pixels++, j, i);
 		}
 		pixels += rendfb->width - vp.width;
 	}
+#endif
 }
 
 static int raytrace(cgm_vec4 *color, struct ray *ray, struct scene *scn, int iter)

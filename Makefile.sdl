@@ -27,6 +27,14 @@ clean:
 cleandep:
 	rm -f $(dep)
 
+.PHONY: data
+data:
+	$(MAKE) -f tools/data.mk
+
+.PHONY: tiles
+tiles: data
+	display -filter point -resize 200% data/tileset.png
+
 .PHONY: libs
 libs: imago
 

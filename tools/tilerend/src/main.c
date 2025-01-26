@@ -81,8 +81,8 @@ static int parse_args(int argc, char **argv)
 		if(argv[i][0] == '-') {
 			if(argv[i][1] == 'v') {
 				int vcount = 0;
-				s = argv[i] + 1;
-				while(*s++ == 'v') vcount++;
+				s = argv[i];
+				while(*++s == 'v') vcount++;
 				if(!*s) {
 					opt_verbose = vcount;
 					continue;
