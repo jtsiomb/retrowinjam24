@@ -15,6 +15,7 @@ struct block {
 static struct thread_pool *tpool;
 static struct block *blklist;
 static int numblk;
+static int num_proc;
 #endif
 
 
@@ -55,8 +56,9 @@ int rend_init(void)
 	rend_samples(1);
 
 #ifdef USE_THREADS
+	num_proc = tpool_num_processors();
 	if(opt_verbose) {
-		printf("creating thread pool (%d processors detected)\n", tpool_num_processors());
+		printf("creating thread pool (%d processors detected)\n", num_proc);
 	}
 	if(!(tpool = tpool_create(0))) {
 		fprintf(stderr, "failed to create thread pool\n");
@@ -148,7 +150,7 @@ static int prepare_render(void)
 	}
 
 #ifdef USE_THREADS
-	if(!blklist) {
+	if(!blklist && num_proc > 1) {
 		int j, xblk, yblk;
 		struct block *blk;
 
@@ -236,12 +238,11 @@ static void render_worker(void *data)
 	struct block *blk = data;
 	cgm_vec4 *pixptr;
 
-	y = vp.y + blk->y;
-	pixptr = rendfb->pixels + y * rendfb->width + vp.x + blk->x;
-	printf("blk %d,%d (offs: %d) (vp: %d,%d)\n", blk->x, blk->y, y * rendfb->width + vp.x + blk->x, vp.x, vp.y);
+	pixptr = rendfb->pixels + (vp.y + blk->y) * rendfb->width + vp.x + blk->x;
 
+	y = blk->y;
 	for(i=0; i<blk->height; i++) {
-		x = vp.x + blk->x;
+		x = blk->x;
 		for(j=0; j<blk->width; j++) {
 			render_pixel(pixptr++, x++, y);
 		}
@@ -253,12 +254,8 @@ static void render_worker(void *data)
 
 void render(struct scene *scene)
 {
-#ifdef USE_THREADS
-	int i;
-#else
 	int i, j;
 	cgm_vec4 *pixels;
-#endif
 
 	if(prepare_render() == -1) {
 		return;
@@ -266,13 +263,20 @@ void render(struct scene *scene)
 	scn = scene;
 
 #ifdef USE_THREADS
-	tpool_begin_batch(tpool);
-	for(i=0; i<numblk; i++) {
-		tpool_enqueue(tpool, blklist + i, render_worker, 0);
+	/* skip the threaded version on machines with a single processor to avoid
+	 * the overhead of a sad single thread pool worker pumping jobs in the dark
+	 */
+	if(num_proc > 1) {
+		tpool_begin_batch(tpool);
+		for(i=0; i<numblk; i++) {
+			tpool_enqueue(tpool, blklist + i, render_worker, 0);
+		}
+		tpool_end_batch(tpool);
+		tpool_wait(tpool);
+		return;
 	}
-	tpool_end_batch(tpool);
-	tpool_wait(tpool);
-#else
+#endif
+
 	pixels = rendfb->pixels + vp.y * rendfb->width + vp.x;
 	for(i=0; i<vp.height; i++) {
 		for(j=0; j<vp.width; j++) {
@@ -280,7 +284,6 @@ void render(struct scene *scene)
 		}
 		pixels += rendfb->width - vp.width;
 	}
-#endif
 }
 
 static int raytrace(cgm_vec4 *color, struct ray *ray, struct scene *scn, int iter)
