@@ -26,6 +26,7 @@ static int cmd_lightcolor(char *args);
 static int cmd_lightdir(char *args);
 static int cmd_lightpos(char *args);
 static int cmd_render(char *args);
+static int cmd_newline(char *args);
 static int cmd_samples(char *args);
 static int cmd_tile(char *args);
 static int cmd_visclear(char *args);
@@ -52,6 +53,7 @@ static struct {
 	{"lightdir", cmd_lightdir},
 	{"lightpos", cmd_lightpos},
 	{"render", cmd_render},
+	{"newline", cmd_newline},
 	{"samples", cmd_samples},
 	{"tile", cmd_tile},
 	{"visclear", cmd_visclear},
@@ -466,6 +468,13 @@ static int cmd_render(char *args)
 		tilex = 0;
 		tiley += tileheight;
 	}
+	return 0;
+}
+
+static int cmd_newline(char *args)
+{
+	tilex = 0;
+	tiley += tileheight;
 	return 0;
 }
 
