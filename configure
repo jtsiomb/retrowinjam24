@@ -57,7 +57,7 @@ echo "debug symbols: $dbg"
 
 echo "# Makefile for $buildname build" >Makefile
 if $opt; then
-	if `uname -s` = SunOS; then
+	if [ `uname -s` = SunOS ]; then
 		echo 'opt = -fast' >>Makefile
 	else
 		echo 'opt = -O3' >>Makefile
