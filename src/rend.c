@@ -56,14 +56,6 @@ void render_view(void)
 			rend.stat_ntiles++;
 
 			cell = get_levelcell(&lvl, j, i);
-			if(cell->wtile[0] > 0) {
-				blit_tile(gfx_back, x0, y0 + TILE_YSZ / 2, lvl.tset, cell->wtile[0]);
-				rend.stat_nblits++;
-			}
-			if(cell->wtile[1] > 0) {
-				blit_tile(gfx_back, x0 + TILE_XSZ / 2, y0 + TILE_YSZ / 2, lvl.tset, cell->wtile[1]);
-				rend.stat_nblits++;
-			}
 
 			tid = cell->ftile > 0 ? cell->ftile : 0;
 			if(!tid) tid = rend.empty_tile;
@@ -74,6 +66,16 @@ void render_view(void)
 			}
 			if(y < YRES + TILE_YSZ) {
 				blit_tile(gfx_back, x0, y, lvl.tset, tid);
+				rend.stat_nblits++;
+			}
+
+			/* draw walls */
+			if(cell->wtile[0] > 0) {
+				blit_tile(gfx_back, x0, y0 + TILE_YSZ / 2 + 9, lvl.tset, cell->wtile[0]);
+				rend.stat_nblits++;
+			}
+			if(cell->wtile[1] > 0) {
+				blit_tile(gfx_back, x0 + TILE_XSZ / 2, y0 + TILE_YSZ / 2 + 9, lvl.tset, cell->wtile[1]);
 				rend.stat_nblits++;
 			}
 		}
