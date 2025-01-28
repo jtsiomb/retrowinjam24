@@ -416,8 +416,15 @@ static void shade(cgm_vec4 *color, struct scene *scn, struct rayhit *hit, int it
 
 static void texlookup(cgm_vec4 *color, struct rendimage *img, cgm_vec2 uv, cgm_vec2 duv)
 {
-	int tx = (int)(fmod(uv.x, 1.0f) * (float)img->width);
-	int ty = (int)(fmod(uv.y, 1.0f) * (float)img->height);
+	int tx, ty;
+	float u = fmod(uv.x, 1.0f);
+	float v = fmod(uv.y, 1.0f);
+
+	if(u < 0.0f) u += 1.0f;
+	if(v < 0.0f) v += 1.0f;
+
+	tx = (int)(u * (float)img->width);
+	ty = (int)(v * (float)img->height);
 	*color = img->pixels[ty * img->width + tx];
 }
 
