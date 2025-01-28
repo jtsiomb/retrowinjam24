@@ -13,6 +13,9 @@ libdir = -Llibs/unix
 CFLAGS = $(warn) $(opt) $(dbg) $(incdir) `sdl-config --cflags` -MMD
 LDFLAGS = $(libdir) `sdl-config --libs` -limago -lm
 
+.PHONY: all
+all: $(bin) data
+
 $(bin): $(obj) libs
 	$(CC) -o $@ $(obj) $(LDFLAGS)
 

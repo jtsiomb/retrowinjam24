@@ -1,0 +1,3 @@
+[submodule "tools/imgquant"]
+	path = tools/imgquant
+	url = https://github.com/jtsiomb/imgquant
