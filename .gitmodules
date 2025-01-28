@@ -1,3 +1,6 @@
 [submodule "tools/imgquant"]
 	path = tools/imgquant
 	url = https://github.com/jtsiomb/imgquant
+[submodule "tools/tilerend"]
+	path = tools/tilerend
+	url = https://github.com/jtsiomb/tilerend
